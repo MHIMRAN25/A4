@@ -58,10 +58,10 @@ module.exports = {
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
       // 🎯 অ্যাভাটার বসানো → মেয়েটার মুখ বরাবর
-      const avatarRadius = 220; 
-      const avatarSize = avatarRadius * 3; 
+      const avatarRadius = 222; 
+      const avatarSize = avatarRadius * 2; 
       const avatarX = 260;  // X ঠিক করা হয়েছে
-      const avatarY = 280;  // Y ঠিক করা হয়েছে
+      const avatarY = 285;  // Y ঠিক করা হয়েছে
 
       ctx.save();
       ctx.beginPath();
