@@ -3,11 +3,11 @@ const fs = require("fs-extra");
 
 module.exports = {
 	config: {
-		name: "pregnancy",
+		name: "pregnant",
 		version: "1.2",
 		author: "your love",
 		countDown: 5,
-		role: 2,
+		role:0,
 		shortDescription: "Pregnancy meme generator",
 		longDescription: "Make a pregnancy meme using custom template",
 		category: "fun",
