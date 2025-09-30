@@ -1,29 +1,115 @@
-from PIL import Image, ImageDraw, ImageFont
+const Canvas = require("canvas");
+const fs = require("fs-extra");
 
-# ছবিটি ওপেন করো
-img = Image.open("input.jpg")
+module.exports = {
+  config: {
+    name: "pregnancy",
+    version: "1.5",
+    author: "M H IMRAN", // ❌ কেউ চাইলে পরিবর্তন করতে পারবে না
+    countDown: 5,
+    role: 2,
+    shortDescription: "Pregnancy meme generator",
+    longDescription: "Make a pregnancy meme using custom template",
+    category: "fun",
+    guide: {
+      en: "{pn} @tag অথবা রিপ্লাই করুন"
+    }
+  },
 
-# ড্রইং কনটেক্সট তৈরি করো
-draw = ImageDraw.Draw(img)
+  langs: {
+    bn: {
+      noTag: "⚠️ আপনাকে অবশ্যই কাউকে ট্যাগ করতে হবে অথবা মেসেজে রিপ্লাই দিতে হবে!"
+    },
+    en: {
+      noTag: "⚠️ You must tag or reply to someone!"
+    }
+  },
 
-# ফন্ট সেট করো (নিচেরটা তোমার সিস্টেমে থাকতে হবে, Windows এ সাধারণত 'arial.ttf' থাকে)
-font = ImageFont.truetype("arial.ttf", 60)
+  onStart: async function ({ event, message, usersData, args, getLang }) {
+    try {
+      let uid2;
 
-# টেক্সট যেটা বসাতে চাও
-text = "😜 ল্যাংটা বাবার শুভেচ্ছা 😜"
+      if (Object.keys(event.mentions).length > 0) {
+        uid2 = Object.keys(event.mentions)[0];
+      } else if (event.messageReply) {
+        uid2 = event.messageReply.senderID;
+      }
 
-# ছবির সাইজ
-W, H = img.size
+      if (!uid2) return message.reply(getLang("noTag"));
 
-# মুখের অংশের জন্য ছবির মাঝ বরাবর Y কো-অর্ডিনেট নেবো
-# এখানে H এর প্রায় 0.35 গুণ নিচে নামিয়ে মুখের কাছাকাছি বসানো হচ্ছে
-w, h = draw.textsize(text, font=font)
-x = (W - w) // 2
-y = int(H * 0.35)
+      await message.reply("🔎 প্রেগন্যান্সি মিম তৈরি হচ্ছে...");
 
-# টেক্সট বসাও
-draw.text((x, y), text, font=font, fill="red")
+      const avatarURL = await usersData.getAvatarUrl(uid2);
+      if (!avatarURL) return message.reply("⚠️ ইউজারের অ্যাভাটার আনা যাচ্ছে না!");
 
-# ছবিটি সেভ করো
-img.save("output.jpg")
-print("✅ কাজ শেষ! output.jpg ফাইলে টেক্সট বসে গেছে।")
+      const avatar = await Canvas.loadImage(avatarURL);
+
+      // ✅ টেমপ্লেট লোড
+      const templatePath = __dirname + "/assets/pregnancy_template.png";
+      if (!fs.existsSync(templatePath)) {
+        return message.reply("⚠️ টেমপ্লেট ইমেজ খুঁজে পাওয়া যায়নি! Path: " + templatePath);
+      }
+      const template = await Canvas.loadImage(templatePath);
+
+      // ক্যানভাস সেটআপ
+      const canvas = Canvas.createCanvas(template.width, template.height);
+      const ctx = canvas.getContext("2d");
+
+      ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
+
+      // 🎯 অ্যাভাটার বসানো → মেয়েটার মুখ বরাবর
+      const avatarRadius = 220; 
+      const avatarSize = avatarRadius * 2; 
+      const avatarX = 260;  // X ঠিক করা হয়েছে
+      const avatarY = 120;  // Y ঠিক করা হয়েছে
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(avatarX + avatarRadius, avatarY + avatarRadius, avatarRadius, 0, Math.PI * 2, true);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
+      ctx.restore();
+
+      // টেক্সট নিচে বসানো
+      ctx.font = "bold 40px Arial";
+      ctx.fillStyle = "#ff0066";
+      ctx.textAlign = "center";
+      ctx.fillText("ল্যাংটা বাবার শুভেচ্ছা", canvas.width / 2, canvas.height - 30);
+
+      // ফাইল সেভ
+      const pathSave = `${__dirname}/tmp/${uid2}_pregnancy.png`;
+      fs.writeFileSync(pathSave, canvas.toBuffer());
+
+      // মজার টেক্সট
+      const funnyTexts = [
+        `🤰 অভিনন্দন <@${uid2}>, তোমার রিপোর্ট পজিটিভ এসেছে!`,
+        `😂 ওহ না… <@${uid2}> এখন মা/বাবা হতে যাচ্ছে!`,
+        `👶 <@${uid2}> এক্সপেক্ট করছে! প্রস্তুত হও…`,
+        `😳 ডাক্তার বলছে <@${uid2}> এর টেস্ট রেজাল্ট পজিটিভ!`,
+        `🤰 Congratulations <@${uid2}>, your test came out positive!`,
+        `😂 Oh no… <@${uid2}> is going to be a parent now!`,
+        `👶 Baby incoming! <@${uid2}> is expecting…`,
+        `😳 Doctor just confirmed <@${uid2}>’s test result is positive!`
+      ];
+
+      const finalText = args.join(" ") || funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
+
+      const sent = await message.reply({
+        body: finalText,
+        attachment: fs.createReadStream(pathSave)
+      });
+
+      // ✅ Reaction Add
+      if (sent && sent.messageID) {
+        message.react("🤰", sent.messageID);
+      }
+
+      fs.unlinkSync(pathSave);
+
+    } catch (err) {
+      console.error("❌ ERROR:", err);
+      message.reply("⚠️ মিম তৈরি করতে সমস্যা হয়েছে: " + err.message);
+    }
+  }
+};
