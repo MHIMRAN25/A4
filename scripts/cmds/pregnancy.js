@@ -59,9 +59,9 @@ module.exports = {
 
       // 🎯 অ্যাভাটার বসানো → মেয়েটার মুখ বরাবর
       const avatarRadius = 222; 
-      const avatarSize = avatarRadius * 2; 
-      const avatarX = 260;  // X ঠিক করা হয়েছে
-      const avatarY = 285;  // Y ঠিক করা হয়েছে
+      const avatarSize = avatarRadius * 4; 
+      const avatarX = 265;  // X ঠিক করা হয়েছে
+      const avatarY = 290;  // Y ঠিক করা হয়েছে
 
       ctx.save();
       ctx.beginPath();
@@ -71,7 +71,7 @@ module.exports = {
       ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
-      // টেক্সট নিচে বসানো
+  
       ctx.font = "bold 40px Arial";
       ctx.fillStyle = "#ff0066";
       ctx.textAlign = "center";
@@ -102,14 +102,14 @@ module.exports = {
 
       // ✅ Reaction Add
       if (sent && sent.messageID) {
-        message.react("🤰", sent.messageID);
+        message.react("🤰","😂", sent.messageID);
       }
 
       fs.unlinkSync(pathSave);
 
     } catch (err) {
       console.error("❌ ERROR:", err);
-      message.reply("⚠️ মিম তৈরি করতে সমস্যা হয়েছে: " + err.message);
+      message.reply("⚠️ meme তৈরি করতে সমস্যা হয়েছে: " + err.message);
     }
   }
 };
