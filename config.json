@@ -12,13 +12,13 @@
 	"antiInbox": false,
 	"language": "en",
 	"notesLanguage": "change to your language with ISO 639-1 code, available languages: vi (Vietnamese), en (English)",
-	"nickNameBot": "SAIF-BOT 🕊️✨",
+	"nickNameBot": "🕊️✨",
 	"prefix": ".",
 	"adminOnly": {
 		"enable": false,
 		"ignoreCommand": []
 	},
-	"adminBot": ["100081317798618","100078639797619","61578771147998"],
+	"adminBot": ["100081317798618","100089926788317"],
 	"whiteListMode": {
 		"enable": false,
 		"whiteListIds": [],
