@@ -61,7 +61,7 @@ module.exports = {
       const avatarRadius = 220; 
       const avatarSize = avatarRadius * 2; 
       const avatarX = 260;  // X ঠিক করা হয়েছে
-      const avatarY = 120;  // Y ঠিক করা হয়েছে
+      const avatarY = 260;  // Y ঠিক করা হয়েছে
 
       ctx.save();
       ctx.beginPath();
