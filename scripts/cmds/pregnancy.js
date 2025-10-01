@@ -60,7 +60,7 @@ module.exports = {
       // 🎯 অ্যাভাটার বসানো → মেয়েটার মুখ বরাবর
       const avatarRadius = 230; 
       const avatarSize = avatarRadius * 2; 
-      const avatarX = 265;  // X ঠিক করা হয়েছে
+      const avatarX = 262;  // X ঠিক করা হয়েছে
       const avatarY = 295;  // Y ঠিক করা হয়েছে
 
       ctx.save();
