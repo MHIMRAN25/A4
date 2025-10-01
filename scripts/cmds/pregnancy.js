@@ -5,11 +5,11 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "2.5",
-    author: "M H IMRAN",
+    version: "3.0",
+    author: "M H IMRAN", // ❌ কেউ চাইলে পরিবর্তন করতে পারবে না
     countDown: 5,
     role: 2,
-    shortDescription: "Pregnancy meme generator (multi-template + configs)",
+    shortDescription: "Pregnancy meme generator",
     longDescription: "Make a pregnancy meme using multiple configurable templates",
     category: "fun",
     guide: {
@@ -26,11 +26,12 @@ module.exports = {
     }
   },
 
-  onStart: async function ({ event, message, usersData, args, getLang }) {
+  onStart: async function ({ event, message, usersData, args, getLang, api }) {
     let pathSave;
     try {
       let uid2;
 
+      // ✅ Mention / Reply থেকে UID বের করা
       if (Object.keys(event.mentions).length > 0) {
         uid2 = Object.keys(event.mentions)[0];
       } else if (event.messageReply) {
@@ -38,36 +39,45 @@ module.exports = {
       }
 
       if (!uid2) return message.reply(getLang("noTag"));
-      await message.reply("🔎 প্রেগন্যান্সি মিম তৈরি হচ্ছে...");
+      await message.reply("🔎 w8 plz...");
 
+      // ✅ ইউজারের অ্যাভাটার আনা
       const avatarURL = await usersData.getAvatarUrl(uid2);
       if (!avatarURL) return message.reply("⚠️ ইউজারের অ্যাভাটার আনা যাচ্ছে না!");
       const avatar = await Canvas.loadImage(avatarURL);
 
-      // ✅ একাধিক টেমপ্লেট + Config (প্রতিটা আলাদা সেটিংস)
+      // ✅ ফন্ট রেজিস্টার (বাংলা + ইংরেজি)
+      Canvas.registerFont(path.join(__dirname, "assets", "NotoSans-Bengali.ttf"), { family: "NotoSans" });
+
+      // ✅ একাধিক টেমপ্লেট config
       const templates = [
         {
           file: path.join(__dirname, "assets/pregnancy_template.png"),
           avatar: { x: 262, y: 295, radius: 230 },
-          text: { x: "center", y: -30 }
+          text: { x: "center", y: -80 }
         },
         {
           file: path.join(__dirname, "assets/pregnancy_template2.png"),
           avatar: { x: 150, y: 200, radius: 180 },
-          text: { x: "center", y: -40 }
+          text: { x: "center", y: -60 }
         }
       ];
 
-      // user যদি template number দেয় → সেটা নেবে, না হলে random
+      // ✅ Template Select করা
       let templateIndex = parseInt(args[0]) - 1;
       if (isNaN(templateIndex) || templateIndex < 0 || templateIndex >= templates.length) {
         templateIndex = Math.floor(Math.random() * templates.length);
       }
 
-      const chosen = templates[templateIndex];
+      let chosen = templates[templateIndex];
       if (!(await fs.pathExists(chosen.file))) {
-        return message.reply("⚠️ টেমপ্লেট পাওয়া যায়নি: " + chosen.file);
+        // যদি টেমপ্লেট না থাকে, fallback অন্যটায় যাবে
+        chosen = templates.find(t => fs.existsSync(t.file));
+        if (!chosen) {
+          return message.reply("⚠️ কোনো টেমপ্লেট পাওয়া যায়নি!");
+        }
       }
+
       const template = await Canvas.loadImage(chosen.file);
 
       // 🖼️ ক্যানভাস সেটআপ
@@ -75,7 +85,7 @@ module.exports = {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
-      // 🎯 অ্যাভাটার বসানো (config অনুযায়ী)
+      // 🎯 Avatar বসানো
       const { x, y, radius } = chosen.avatar;
       const size = radius * 2;
       ctx.save();
@@ -86,15 +96,11 @@ module.exports = {
       ctx.drawImage(avatar, x, y, size, size);
       ctx.restore();
 
-      // Text যোগ করা (config অনুযায়ী)
-      ctx.font = "bold 40px Sans";
+      // 🎯 টেক্সট লেখা
+      ctx.font = "bold 40px NotoSans";
       ctx.fillStyle = "#ff0066";
       ctx.textAlign = "center";
-      ctx.fillText(
-        "ল্যাংটা বাবার শুভেচ্ছা",
-        canvas.width / 2,
-        canvas.height + chosen.text.y
-      );
+      ctx.fillText("Congratulations", canvas.width / 2, canvas.height + chosen.text.y);
 
       // ফাইল সেভ
       pathSave = `${__dirname}/tmp/${uid2}_pregnancy.png`;
@@ -119,9 +125,15 @@ module.exports = {
         attachment: fs.createReadStream(pathSave)
       });
 
+      // ✅ fb-chat-api style reaction
       if (sent && sent.messageID) {
-        await message.react("🤰", sent.messageID);
-        await message.react("😂", sent.messageID);
+        api.setMessageReaction("🤰", sent.messageID, (err) => {
+          if (err) console.error("Reaction error:", err);
+        }, true);
+
+        api.setMessageReaction("😂", sent.messageID, (err) => {
+          if (err) console.error("Reaction error:", err);
+        }, true);
       }
 
     } catch (err) {
