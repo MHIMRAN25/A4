@@ -5,8 +5,8 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "2.0",
-    author: "M H IMRAN", // ❌ কেউ চাইলে পরিবর্তন করতে পারবে না
+    version: "2.3",
+    author: "M H IMRAN", // ❌ কেউ পরিবর্তন করতে পারবে না
     countDown: 5,
     role: 2,
     shortDescription: "Pregnancy meme generator",
@@ -40,7 +40,7 @@ module.exports = {
 
       if (!uid2) return message.reply(getLang("noTag"));
 
-      await message.reply("🔎 প্রেগন্যান্সি meme তৈরি হচ্ছে...");
+      await message.reply("🔎 প্রেগন্যান্সি  meme তৈরি হচ্ছে...");
 
       
       const userData = await usersData.get(uid2);
@@ -56,7 +56,7 @@ module.exports = {
       }
       const template = await Canvas.loadImage(templatePath);
 
-      
+    
       const canvas = Canvas.createCanvas(template.width, template.height);
       const ctx = canvas.getContext("2d");
 
@@ -76,11 +76,11 @@ module.exports = {
       ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
-      
+    
       ctx.font = "bold 40px Arial";
       ctx.fillStyle = "#ff0066";
       ctx.textAlign = "center";
-      ctx.fillText("ল্যাংটা বাবার শুভেচ্ছা", canvas.width / 2, canvas.height - 30);
+      ctx.fillText("", canvas.width / 2, canvas.height - 30);
 
       
       pathSave = `${__dirname}/tmp/${uid2}_pregnancy.png`;
@@ -88,27 +88,34 @@ module.exports = {
 
       
       const funnyTexts = [
-        `🤰 অভিনন্দন {name}, তোমার রিপোর্ট পজিটিভ এসেছে!`,
-        `😂 ওহ না… {name} এখন মা/বাবা হতে যাচ্ছে!`,
-        `👶 {name} এক্সপেক্ট করছে! প্রস্তুত হও…`,
-        `😳 ডাক্তার বলছে {name} এর টেস্ট রেজাল্ট পজিটিভ!`,
-        `🤰 Congratulations {name}, your test came out positive!`,
-        `😂 Oh no… {name} is going to be a parent now!`,
-        `👶 Baby incoming! {name} is expecting…`,
-        `😳 Doctor just confirmed {name}’s test result is positive!`
+        `🤰 অভিনন্দন ${userName}, তোমার রিপোর্ট পজিটিভ এসেছে!`,
+        `😂 ওহ না… ${userName} এখন মা/বাবা হতে যাচ্ছে!`,
+        `👶 ${userName} এক্সপেক্ট করছে! প্রস্তুত হও…`,
+        `😳 ডাক্তার বলছে ${userName} এর টেস্ট রেজাল্ট পজিটিভ!`,
+        `🤰 Congratulations ${userName}, your test came out positive!`,
+        `😂 Oh no… ${userName} is going to be a parent now!`,
+        `👶 Baby incoming! ${userName} is expecting…`,
+        `😳 Doctor just confirmed ${userName}’s test result is positive!`
       ];
 
-      let finalText = args.join(" ") || funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
-      finalText = finalText.replace(/{name}/g, userName);
+      
+      let finalText;
+      if (args.length > 0) {
+      
+        finalText = args.join(" ") + ` ${userName}`;
+      } else {
+        
+        finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
+      }
 
-      // ✅ মেসেজ রিপ্লাই (mention সহ যাতে নাম highlight হয়)
+      
       const sent = await message.reply({
         body: finalText,
         attachment: fs.createReadStream(pathSave),
         mentions: [{ tag: userName, id: uid2 }]
       });
 
-      // ✅ reaction add (fb-chat-api compatible)
+      // ✅ Reaction
       if (sent && sent.messageID) {
         api.setMessageReaction("🤰", sent.messageID, (err) => {
           if (err) console.error("Reaction error:", err);
