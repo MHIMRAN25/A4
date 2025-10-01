@@ -5,8 +5,8 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pregnant",
-    version: "2.3",
-    author: "M H IMRAN", // ❌ কেউ পরিবর্তন করতে পারবে না
+    version: "2.5",
+    author: "M H IMRAN", 
     countDown: 5,
     role: 2,
     shortDescription: "Pregnancy meme generator",
@@ -26,10 +26,13 @@ module.exports = {
     }
   },
 
-  onStart: async function ({ event, message, usersData, args, getLang, api }) {
+  onStart: async function ({ event, message, usersData, getLang, api }) {
     let pathSave;
     try {
-      let uid2;
+      // Author লক
+      if (module.exports.config.author !== "M H IMRAN") {
+        return message.reply("❌ এই কমান্ডের author পরিবর্তন করা যাবে না!");
+      }
 
       
       if (Object.keys(event.mentions).length > 0) {
