@@ -4,9 +4,9 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "pregnant",
+    name: "pregnancy",
     version: "2.5",
-    author: "M H IMRAN", 
+    author: "M H IMRAN", // ❌ কেউ পরিবর্তন করতে পারবে না
     countDown: 5,
     role: 2,
     shortDescription: "Pregnancy meme generator",
@@ -29,12 +29,14 @@ module.exports = {
   onStart: async function ({ event, message, usersData, getLang, api }) {
     let pathSave;
     try {
-      // Author লক
+      // 🔒 Author Lock
       if (module.exports.config.author !== "M H IMRAN") {
         return message.reply("❌ এই কমান্ডের author পরিবর্তন করা যাবে না!");
       }
 
-      
+      let uid2;
+
+      // mention অথবা reply ধরো
       if (Object.keys(event.mentions).length > 0) {
         uid2 = Object.keys(event.mentions)[0];
       } else if (event.messageReply) {
@@ -43,29 +45,28 @@ module.exports = {
 
       if (!uid2) return message.reply(getLang("noTag"));
 
-      await message.reply("🔎 প্রেগন্যান্সি  meme তৈরি হচ্ছে...");
+      await message.reply("🔎 প্রেগন্যান্সি meme তৈরি হচ্ছে...");
 
-      
+      // user info
       const userData = await usersData.get(uid2);
       const userName = userData?.name || "User";
       const avatarURL = await usersData.getAvatarUrl(uid2);
       if (!avatarURL) return message.reply("⚠️ ইউজারের অ্যাভাটার আনা যাচ্ছে না!");
       const avatar = await Canvas.loadImage(avatarURL);
 
-      
+      // template লোড
       const templatePath = path.join(__dirname, "assets", "pregnancy_template.png");
       if (!fs.existsSync(templatePath)) {
         return message.reply("⚠️ টেমপ্লেট ইমেজ খুঁজে পাওয়া যায়নি! Path: " + templatePath);
       }
       const template = await Canvas.loadImage(templatePath);
 
-    
+      // ক্যানভাস সেটআপ
       const canvas = Canvas.createCanvas(template.width, template.height);
       const ctx = canvas.getContext("2d");
-
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
-    
+      // avatar বসানো
       const avatarRadius = 230;
       const avatarSize = avatarRadius * 2;
       const avatarX = 262;
@@ -79,17 +80,17 @@ module.exports = {
       ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
-    
+      // নিচে লেখার জায়গা (future use)
       ctx.font = "bold 40px Arial";
       ctx.fillStyle = "#ff0066";
       ctx.textAlign = "center";
       ctx.fillText("", canvas.width / 2, canvas.height - 30);
 
-      
+      // সেভ
       pathSave = `${__dirname}/tmp/${uid2}_pregnancy.png`;
       fs.writeFileSync(pathSave, canvas.toBuffer());
 
-      
+      // funny texts
       const funnyTexts = [
         `🤰 অভিনন্দন ${userName}, তোমার রিপোর্ট পজিটিভ এসেছে!`,
         `😂 ওহ না… ${userName} এখন মা/বাবা হতে যাচ্ছে!`,
@@ -101,46 +102,25 @@ module.exports = {
         `😳 Doctor just confirmed ${userName}’s test result is positive!`
       ];
 
-      
+      // সবসময় funny text
       const finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
 
+      // মেসেজ পাঠানো
       const sent = await message.reply({
         body: finalText,
         attachment: fs.createReadStream(pathSave),
         mentions: [{ tag: userName, id: uid2 }]
       });
 
-      
-      let finalText;
-      if (args.length > 0) {
-      
-        finalText = args.join(" ") + ` ${userName}`;
-      } else {
-        
-        finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
-      }
-
-      
-      const sent = await message.reply({
-        body: finalText,
-        attachment: fs.createReadStream(pathSave),
-        mentions: [{ tag: userName, id: uid2 }]
-      });
-
-    
+      // ✅ Reaction
       if (sent && sent.messageID) {
-        api.setMessageReaction("🤰", sent.messageID, (err) => {
-          if (err) console.error("Reaction error:", err);
-        }, true);
-
-        api.setMessageReaction("😂", sent.messageID, (err) => {
-          if (err) console.error("Reaction error:", err);
-        }, true);
+        api.setMessageReaction("🤰", sent.messageID, () => {}, true);
+        api.setMessageReaction("😂", sent.messageID, () => {}, true);
       }
 
     } catch (err) {
       console.error("❌ ERROR:", err);
-      message.reply("" + err.message);
+      message.reply("⚠️ meme তৈরি করতে সমস্যা হয়েছে: " + err.message);
     } finally {
       if (pathSave && await fs.pathExists(pathSave)) {
         await fs.remove(pathSave);
