@@ -4,7 +4,7 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "pregnancy",
+    name: "pregnant",
     version: "2.3",
     author: "M H IMRAN", // ❌ কেউ পরিবর্তন করতে পারবে না
     countDown: 5,
@@ -99,6 +99,15 @@ module.exports = {
       ];
 
       
+      const finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
+
+      const sent = await message.reply({
+        body: finalText,
+        attachment: fs.createReadStream(pathSave),
+        mentions: [{ tag: userName, id: uid2 }]
+      });
+
+      
       let finalText;
       if (args.length > 0) {
       
@@ -115,7 +124,7 @@ module.exports = {
         mentions: [{ tag: userName, id: uid2 }]
       });
 
-      // ✅ Reaction
+    
       if (sent && sent.messageID) {
         api.setMessageReaction("🤰", sent.messageID, (err) => {
           if (err) console.error("Reaction error:", err);
