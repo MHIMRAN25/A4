@@ -3,7 +3,7 @@ module.exports.config = {
   version: "1.0.2",
   role: 2,
   author: "M H IMRAN", 
-  description: "tag roast (non-sexual)",
+  description: "tag roast",
   category: "media",
   usages: "taggali",
   countDowns: 5,
