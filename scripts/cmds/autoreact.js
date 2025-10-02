@@ -13,7 +13,7 @@ const AUTHOR = "MH-BOT TEAM";
 
 module.exports = {
   config: {
-    name: "react",
+    name: "autoreact",
     description: "Auto react to every message with custom emoji list",
     usage: ".autoreact [on/off/add/remove/list] [emoji]",
     cooldown: 3,
