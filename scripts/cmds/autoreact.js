@@ -9,24 +9,18 @@
 const fs = require("fs");
 const settingFile = __dirname + "/../../autoreact.json";
 
-const AUTHOR = "MH-BOT TEAM";
-
 module.exports = {
   config: {
     name: "autoreact",
     description: "Auto react to every message with custom emoji list",
     usage: ".autoreact [on/off/add/remove/list] [emoji]",
     cooldown: 3,
-    credit: AUTHOR,
-    category: "fun"
+    category: "fun", // ✅ category fix
+    author: "MH-BOT TEAM"
   },
 
-
-  run: async ({ api, event, args }) => {
-    if (module.exports.config.credit !== AUTHOR) {
-      return api.sendMessage("❌ Author/credit পরিবর্তন করা যাবে না!", event.threadID);
-    }
-
+  // ===== Command Handler =====
+  onStart: async ({ api, event, args }) => {   // ✅ run → onStart
     if (!fs.existsSync(settingFile)) {
       fs.writeFileSync(settingFile, JSON.stringify({
         enable: false,
@@ -76,15 +70,14 @@ module.exports = {
     }
   },
 
-  
-  handleEvent: async ({ api, event }) => {
-    if (module.exports.config.credit !== AUTHOR) return; // 🔒 Author lock active
+  // ===== Event Listener =====
+  onChat: async ({ api, event }) => {   // ✅ handleEvent → onChat
     if (!fs.existsSync(settingFile)) return;
     let settings = JSON.parse(fs.readFileSync(settingFile));
 
     if (!settings.enable || !settings.emojis.length) return;
 
-  
+    // Random emoji from list
     const randomEmoji = settings.emojis[Math.floor(Math.random() * settings.emojis.length)];
     api.setMessageReaction(randomEmoji, event.messageID, (err) => {}, true);
   }
