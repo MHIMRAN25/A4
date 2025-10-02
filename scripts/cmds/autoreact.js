@@ -18,7 +18,7 @@ module.exports = {
     usage: ".autoreact [on/off/add/remove/list] [emoji]",
     cooldown: 3,
     credit: AUTHOR,
-    category: fun
+    category: "box"
   },
 
 
