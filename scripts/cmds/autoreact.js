@@ -17,7 +17,8 @@ module.exports = {
     description: "Auto react to every message with custom emoji list",
     usage: ".autoreact [on/off/add/remove/list] [emoji]",
     cooldown: 3,
-    credit: AUTHOR  
+    credit: AUTHOR,
+    category: box
   },
 
 
