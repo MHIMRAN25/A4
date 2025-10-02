@@ -1,117 +1,76 @@
-module.exports.config = {
-  name: "roast",
-  version: "1.1.0",
-  role: 2,
-  author: "M H IMRAN", // লক করা আছে
-  description: "tag roast (Bangla + English random roast lines with emoji)",
-  category: "media",
-  usages: "roast @mention",
-  countDowns: 5,
-  dependencies: {}
-};
+const roastLines = [
+  // ===== Pure Bangla =====
+  "🤣 ${name}, তোর মাথা এমন ফাঁকা—ভাড়া দিলে মেলার মাঠ বানানো যেতো।",
+  "🐔 ${name}, তুই এমন মুরগি—ডিম দেয় না, শুধু ডাকাডাকি করে।",
+  "🐒 ${name}, তুই এমন বানর—চিপস দেখলেই নাচতে শুরু করিস।",
+  "😂 ${name}, তোর হাসি এমন—শোনার পর মানুষ রড দিয়ে কান বন্ধ করে।",
+  "🥶 ${name}, তুই এমন fridge—ভেতরে কিছু নাই, শুধু ঠাণ্ডা বাতাস।",
+  "🍵 ${name}, তুই এমন বাসি চা—খেলে পেট খারাপ, ফেলে দিলেও গন্ধ।",
+  "🥔 ${name}, তুই এমন আলু—যেকোনো রান্নায় গুঁজে দেওয়া যায়, কাজ নাই।",
+  "🐸 ${name}, তোর গলা এমন ব্যাঙের ডাক—কেউ ঘুম ভাঙে, কেউ লাফ দেয়।",
+  "🪑 ${name}, তুই এমন চেয়ার—বসে আরামে থাকা যায় না, কাঁপে সবসময়।",
+  "📦 ${name}, তোর মাথা হলো খালি বাক্স—ঠোকা দিলেই টুং শব্দ হয়।",
+  "🕳️ ${name}, তুই এমন গর্ত—পা পড়লেই মানুষ ডুবে যায়, বের হতে পারে না।",
+  "🤡 ${name}, তুই এমন পুতুল—মুখে রঙ, ভেতরে ফাঁকা কাঠ।",
+  "🐍 ${name}, তুই এমন সাপ—বিষ নাই, শুধু ফোঁসফোঁস শব্দ।",
+  "🐴 ${name}, তোর হাসি এমন ঘোড়া—শুনলে মানুষ দৌড় দেয়।",
+  "📺 ${name}, তুই এমন টিভি—চ্যানেল পাল্টালেও একই বাজে অনুষ্ঠান।",
+  "🪫 ${name}, তোর বুদ্ধি হলো dead battery—চার্জ দিলেও কাজ হয় না।",
+  "🐢 ${name}, তুই এমন কচ্ছপ—পাহাড়ে উঠতে গিয়ে বয়স পার করে ফেলিস।",
+  "🥕 ${name}, তুই এমন গাজর—বাইরে রঙিন, ভেতরে শুধু ফাঁকা।",
+  "🧅 ${name}, তুই এমন পেঁয়াজ—কাটলেই শুধু চোখে জল আসে।",
+  "🪞 ${name}, তুই এমন আয়না—দেখলেই নিজের মুখ দেখে ভয় পায়।",
+  "😹 ${name}, তুই এমন বিড়াল—ম্যাঁও না বলে ‘হায় রে’ বলে ডাকিস।",
+  "🥴 ${name}, তোর বুদ্ধি এমন খিচুড়ি—কোনো স্বাদ নেই, শুধু গুলমাল।",
+  "🪙 ${name}, তুই এমন কয়েন—এপারও বাজে, ওপারও বাজে।",
+  "🐂 ${name}, তোর জেদ এমন ষাঁড়—কাজ নাই, শুধু দৌড়াদৌড়ি।",
+  "🦆 ${name}, তুই এমন হাঁস—ডানা মেলে উড়িস না, শুধু কুতকুত।",
+  "🥦 ${name}, তুই এমন ব্রকোলি—দেখতে স্বাস্থ্যকর, খেতে জঘন্য।",
+  "🍌 ${name}, তুই এমন কলা—বাইরে হলুদ, ভেতরে শুধু নরম।",
+  "🛑 ${name}, তুই এমন সিগনাল—সবাই থামে, তবু কাজ হয় না।",
+  "📯 ${name}, তোর গলা এমন হর্ন—শুনলে সবাই রাগে চুল ছিঁড়ে।",
+  "🧱 ${name}, তুই এমন ইট—ভেতরে ঠাণ্ডা, বাইরে শুধু ধুলো।",
+  "🌽 ${name}, তুই এমন ভুট্টা—চিবোলেও দাঁতে আটকে থাকে।",
+  "🎃 ${name}, তুই এমন কুমড়া—আকারে বড়, ভেতরে ফাঁকা।",
+  "🥳 ${name}, তুই এমন পার্টি—শুরু হবার আগে শেষ হয়ে যায়।",
+  "🦐 ${name}, তুই এমন চিংড়ি—মাথায় ভর, শরীরে কিছু নাই।",
+  "🛵 ${name}, তুই এমন স্কুটি—শব্দ বেশি, গতি কম।",
 
-module.exports.onStart = async function({ api, event }) {
-  try {
-    // Author lock
-    const expectedB64 = "TSBIIElNUkFO";
-    const expectedAuthor = Buffer.from(expectedB64, "base64").toString("utf8");
-    if (module.exports.config.author !== expectedAuthor) {
-      return api.sendMessage("❌ Permission denied — author mismatch.", event.threadID);
-    }
+  // ===== Pure English =====
+  "😂 ${name}, you’re like WiFi in the village—always weak!",
+  "🤣 ${name}, you’re a software update—nobody wants you but still pop up.",
+  "😜 ${name}, you’re like a keyboard without spacebar—totally useless.",
+  "🐌 ${name}, you’re slower than free internet on rainy days.",
+  "🪫 ${name}, you’re a dead battery—0% energy, 100% problem.",
+  "🎈 ${name}, you’re a balloon—full of air, ready to burst.",
+  "💻 ${name}, you’re a laggy PC—takes 10 years to respond.",
+  "🥱 ${name}, you’re a boring Netflix show nobody finishes.",
+  "🦖 ${name}, you’re a dinosaur—outdated and noisy.",
+  "🧃 ${name}, you’re like watered juice—no taste at all.",
+  "📎 ${name}, you’re a paperclip—extra but never needed.",
+  "🌧️ ${name}, you’re like rain in exam days—always unwanted.",
+  "🕸️ ${name}, you’re like Internet Explorer—slow and forgotten.",
+  "📱 ${name}, you’re a fake iPhone—looks fine but useless.",
+  "🤯 ${name}, you’re a glitch—confusing and annoying.",
 
-    const mentions = Object.keys(event.mentions || {});
-    if (!mentions.length) {
-      return api.sendMessage("👉 কাকে মুরগী বানাতে চান @mention করুন। (উদাহরণ: roast @username)", event.threadID);
-    }
-
-    const uid = mentions[0];
-    const displayName = event.mentions[uid] || "তুমি";
-    const mentionsArray = [{ id: uid, tag: displayName }];
-const messages = [
-  // ===================== PURE BANGLA (35) =====================
-  `🤣 ${displayName}, তোর মাথা হলো পুরোনো রেডিও—ঘুরালেও শুধু noise আসে।`,
-  `🐢 ${displayName}, তোর গতি এমন slow—ঘড়ি দেখে মনে হয় থেমে গেছে।`,
-  `📦 ${displayName}, তুই হলো খালি বাক্স—শব্দ বেশি, ভেতরে কিছু নেই।`,
-  `😂 ${displayName}, তুই এমন কৌতুক—হাসার আগেই মানুষ বিরক্ত হয়।`,
-  `🪫 ${displayName}, তোর চার্জ শেষ—কাজে লাগে না, display তবু জ্বলে।`,
-  `🎭 ${displayName}, তোর drama serial-এর থেকেও boring।`,
-  `🍌 ${displayName}, তোর বুদ্ধি কলা—খোসা ফেললেই ফাঁকা।`,
-  `🚪 ${displayName}, তুই এমন দরজা—খুললেই দেয়ালে ধাক্কা লাগে।`,
-  `🥱 ${displayName}, তোর কথা শুনলেই মানুষ হাই তোলে।`,
-  `🐸 ${displayName}, তুই এমন ব্যাঙ—বর্ষা ছাড়া কারো মনে পড়ে না।`,
-  `📉 ${displayName}, তোর popularity chart শেয়ার বাজারের থেকেও নিচে নামে।`,
-  `🍵 ${displayName}, তোর vibe হলো বাসি চা—স্বাদ নাই, গন্ধই কষ্টকর।`,
-  `🤡 ${displayName}, তুই এমন জোকার—সার্কাসও তোরে নেবে না।`,
-  `🕳️ ${displayName}, তুই হলো ফাঁকা কূপ—শব্দ দিলে প্রতিধ্বনি আসে, পানি না।`,
-  `🔑 ${displayName}, তুই এমন চাবি—কোনো তালায় মেলে না।`,
-  `🤣 ${displayName}, তোর মাথা এমন ফাঁকা—ভাড়া দিলে মেলার মাঠ বানানো যেতো।`,
-  `🐔 ${displayName}, তুই এমন মুরগি—ডিম দেয় না, শুধু ডাকাডাকি করে।`,
-  `🐒 ${displayName}, তুই এমন বানর—চিপস দেখলেই নাচতে শুরু করিস।`,
-  `😂 ${displayName}, তোর হাসি এমন—শুনার পর মানুষ রড দিয়ে কান বন্ধ করে।`,
-  `🥶 ${displayName}, তুই এমন fridge—ভেতরে কিছু নাই, শুধু ঠাণ্ডা বাতাস।`,
-  `🍵 ${displayName}, তুই এমন বাসি চা—খেলে পেট খারাপ, ফেলে দিলেও গন্ধ।`,
-  `🥔 ${displayName}, তুই এমন আলু—যেকোনো রান্নায় গুঁজে দেওয়া যায়, কাজ নাই।`,
-  `🐸 ${displayName}, তোর গলা এমন ব্যাঙের ডাক—কেউ ঘুম ভাঙে, কেউ লাফ দেয়।`,
-  `🪑 ${displayName}, তুই এমন চেয়ার—বসে আরামে থাকা যায় না, কাঁপে সবসময়।`,
-  `📦 ${displayName}, তোর মাথা হলো খালি বাক্স—ঠোকা দিলেই টুং শব্দ হয়।`,
-  `🕳️ ${displayName}, তুই এমন গর্ত—পা পড়লেই মানুষ ডুবে যায়, বের হতে পারে না।`,
-  `🤡 ${displayName}, তুই এমন পুতুল—মুখে রঙ, ভেতরে ফাঁকা কাঠ।`,
-  `🐍 ${displayName}, তুই এমন সাপ—বিষ নাই, শুধু ফোঁসফোঁস শব্দ।`,
-  `🐴 ${displayName}, তোর হাসি এমন ঘোড়া—শুনলে মানুষ দৌড় দেয়।`,
-  `📺 ${displayName}, তুই এমন টিভি—চ্যানেল পাল্টালেও একই বাজে অনুষ্ঠান।`,
-  `🪫 ${displayName}, তোর বুদ্ধি হলো dead battery—চার্জ দিলেও কাজ হয় না।`,
-  `🐢 ${displayName}, তুই এমন কচ্ছপ—পাহাড়ে উঠতে গিয়ে বয়স পার করে ফেলিস।`,
-  `🥕 ${displayName}, তুই এমন গাজর—বাইরে রঙিন, ভেতরে শুধু ফাঁকা।`,
-  `🧅 ${displayName}, তুই এমন পেঁয়াজ—কাটলেই শুধু চোখে জল আসে।`,
-  `🪞 ${displayName}, তুই এমন আয়না—দেখলেই নিজের মুখ দেখে ভয় পায়।`,
-
-  // ===================== PURE ENGLISH (15) =====================
-  `😂 ${displayName}, your brain is like Internet Explorer—slow and useless.`,
-  `📱 ${displayName}, you’re that 1% battery nobody wants to deal with.`,
-  `🤣 ${displayName}, you’re like a pop-up ad—annoying every single time.`,
-  `🐌 ${displayName}, your speed makes dial-up internet look fast.`,
-  `🧃 ${displayName}, you’re an empty juice box—nothing inside, just noise.`,
-  `🥱 ${displayName}, talking to you is like reading a 200-page manual.`,
-  `🎮 ${displayName}, you’re a broken joystick—always stuck.`,
-  `🧩 ${displayName}, you’re that missing puzzle piece—never fits anywhere.`,
-  `📺 ${displayName}, you’re a rerun of a boring show—same nonsense daily.`,
-  `🪫 ${displayName}, you’re a dead battery—completely useless.`,
-  `🤡 ${displayName}, you’re a rejected clown—even kids don’t laugh.`,
-  `🎤 ${displayName}, your voice is like auto-tune gone wrong.`,
-  `🐸 ${displayName}, you’re the frog that thinks it’s a lion.`,
-  `🕹️ ${displayName}, you’re lag incarnate—forever buffering.`,
-  `📡 ${displayName}, your signal is lost—searching forever.`,
-
-  // ===================== BANGLISH (15) =====================
-  `🤣 ${displayName}, tor idea holo TikTok life hack—kajer cheye beshi damage kore।`,
-  `😴 ${displayName}, tumi holo boring teacher—class e sobai ghumay।`,
-  `🎧 ${displayName}, tui emon headphone—connect korlei “device not supported” bole।`,
-  `😂 ${displayName}, tor matha holo old calculator—2+2 = 5 dei।`,
-  `🐢 ${displayName}, tui holo slow motion video—skip marleo cholte chayna।`,
-  `🎮 ${displayName}, gamer bole daabi korish but loading screen e rage quit korish।`,
-  `🤡 ${displayName}, tui holo WhatsApp forward—20 bar pathaileo keu khule dekhe na।`,
-  `📲 ${displayName}, tor connection holo 2G—kono kaaj shesh hoy na।`,
-  `🥶 ${displayName}, tor reaction holo fridge—sob cold।`,
-  `📢 ${displayName}, tor kotha holo broken speaker—sound beshi, sense kom।`,
-  `🎬 ${displayName}, tui holo flop cinema—poster valo, content zero।`,
-  `🔋 ${displayName}, tumi holo powerbank without charge—just weight.`,
-  `🐍 ${displayName}, tumi holo plastic snake—dheki boleo kome na।`,
-  `😬 ${displayName}, tor confidence holo Facebook event—RSVP beshi, ashe keu na।`,
-  `🧊 ${displayName}, tui holo ice without freezer—melte deri lage na।`,
-
-  // ===================== MIX (10) =====================
-  `🤣 ${displayName}, tor brain holo Windows update—sudhu “Restart Required” dekhae।`,
-  `🥲 ${displayName}, tumi holo Netflix trailer—hype beshi, content zero।`,
-  `🐌 ${displayName}, tor speed holo buffering YouTube video—360p teo load hoy na।`,
-  `😂 ${displayName}, tui holo spam mail—sobai delete kore, keu pore na।`,
-  `🧃 ${displayName}, tor logic holo expired juice—taste beshi kharap।`,
-  `🥱 ${displayName}, tumi holo PowerPoint slide—dekhei ghum dhore।`,
-  `🎧 ${displayName}, tui holo Bluetooth device—connect hote 10 bar try korte hoy।`,
-  `🐢 ${displayName}, tor progress holo GTA loading screen—shesh hoyna।`,
-  `🤡 ${displayName}, tui holo circus e rejected clown—backup jodio tor kaaj nei।`,
-  `📱 ${displayName}, tor vibe holo Nokia torchlight—light ache, smartness nai।`,
-    // ==== (৫০টা বাংলা + English random roast লাইন with emoji) ====
-      `🔥 ${displayName}, তুই এমন WiFi signal—strong দেখায়, কিন্তু কাজ করে না।`,
+  // ===== Banglish =====
+  "😹 ${name}, tor matha ekdom 2GB RAM er moto—hang hoye thake.",
+  "🤦 ${name}, tui ekdom calculator—battery chara kaj kore na.",
+  "🔥 ${name}, tui emon charger—plug thake, charge dey na.",
+  "🥴 ${name}, tor logic gula Windows XP’r error message er moto.",
+  "🤣 ${name}, tui emon SIM card—network nai, value o nai.",
+  "🐟 ${name}, tui emon machh—jel theke ber hoye gaspite maris.",
+  "🚲 ${name}, tui emon cycle—bell bajay noise kore, speed nai.",
+  "🧢 ${name}, tui emon cap—mathe porle beshi hasir lagay.",
+  "🪀 ${name}, tui emon latoo—ghurai diye chere dile ghurtei thakis.",
+  "📀 ${name}, tui emon CD—scratch pora, chalale hang kore.",
+  "🧊 ${name}, tui emon ice—khub taratari ghorom e goliye jai.",
+  "🎤 ${name}, tor kotha holo autotune chara gaan—ekdom be-shur.",
+  "🕹️ ${name}, tui emon video game—first stage e stuck hoye thakis.",
+  "🤖 ${name}, tui emon robot—command dile ulta kaj koris.",
+  "🍔 ${name}, tui emon burger—dekhte boro, kinte gelo sirf lettuce.",
+// বাংলা + ইংরেজি 
+  `🔥 ${displayName}, তুই এমন WiFi signal—strong দেখায়, কিন্তু কাজ করে না।`,
       `${displayName}, তোর আইডিয়া এত weak যে calculator ও divide by zero error দেয় 🤯`,
       `😂 ${displayName}, তুই এমন update যেটা install হতেই phone hang করে।`,
       `${displayName}, তোর presence হলো background app—কেউ খেয়ালই করে না 😴`,
@@ -159,15 +118,127 @@ const messages = [
       `🕒 ${displayName}, তুই এমন clock যেটা সবসময় wrong time দেখায়।`,
       `😜 ${displayName}, তোর ভাবনা হলো cartoon episode—funny কিন্তু সিরিয়াস নয়।`,
       `🔋 ${displayName}, তোর energy হলো 1% battery mode—কোনো কাজের না।`,
-      `🤣 ${displayName}, তোর নাম শুনলেই লোকজন হাসে—কারণ তুমি walking joke।`
-    ];
-    // ==========================================================
+      `🤣 ${displayName}, তোর নাম শুনলেই লোকজন হাসে—কারণ তুমি walking joke।`,
+  // ===== Mix =====
+  "😂 ${name}, tor matha holo Google search—onek result, but kono kajer nai.",
+  "🤣 ${name}, you’re like Bangla bus driver—always shouting, never on time.",
+  "🐓 ${name}, tui holo chicken fry—bahire crispy, vitore half-boiled.",
+  "😜 ${name}, you’re like Bangla cricket team—sudhu hope, result zero.",
+  "🤡 ${name}, tor look holo circus clown—free entertainment.",
+  "🐢 ${name}, you’re slower than Bangla internet on rainy day.",
+  "📺 ${name}, tui holo old TV—chobi dekha jay na, noise shona jay.",
+  "🥱 ${name}, you’re like Bangla serial—never ending but always boring.",
+  "🐍 ${name}, tui holo half-charged power bank—promise onek, kaj kom.",
+  "🧨 ${name}, you’re like Bangla fireworks—ekbar jollei finish.",
 
-    const chosen = messages[Math.floor(Math.random() * messages.length)];
-    return api.sendMessage({ body: chosen, mentions: mentionsArray }, event.threadID);
+  // ===== Noakhali dialect =====
+  "🐟 ${name}, তোরে দেহি নোয়াখালীর খালে পড়া ইলিশ, একটুখান ফটফটায়, তারপর চুপচাপ।",
+  "🤣 ${name}, তুই হইছস কুমির দোয়াতলা, আওয়াজ বড়, কাম নাই।",
+  "🐸 ${name}, তোর গলা দেহি খালে ডুবন্ত ব্যাঙের ডাক।",
+  "😂 ${name}, তুই হইছস খালি টেপা দই—দেখতে মজা, খাইতে দাঁত ভাঙে।",
+  "🌶️ ${name}, তুই হইছস মরিচের গুঁড়া—চোখে পড়লেই সবাই কাঁদে।",
+  "🍵 ${name}, তুই হইছস চায়ের দোকানের ফালতু কাপ—ভাঙলে কেও কাঁদে না।",
+  "🐢 ${name}, তুই হইছস কচ্ছপের গতি—একটা কদম দিতেই বর্ষা শেষ।",
+  "😹 ${name}, তোরে দেহি নোয়াখালীর কই মাছ—ডাঙায় তুললেই ফটফটায়।",
+  "🤡 ${name}, তোর কাণ্ড দেহি নোয়াখালীর হাটের জোকার।",
+  "🐔 ${name}, তুই হইছস হাঁসের ডিম—না মুরগিরে মানে, না হাঁসেরে মানে।",
 
-  } catch (err) {
-    console.error(err);
-    api.sendMessage("⚠️ কিছু সমস্যা হয়েছে কমান্ড চালাতে গিয়ে।", event.threadID);
+  // ===== Proverbs =====
+  "🐒 ${name}, তুই হইছস বানর গাছে উঠলেও কলা পায় না।",
+  "🐍 ${name}, তুই হইছস দুধ খাওয়া সাপ।",
+  "🐔 ${name}, তুই হইছস ডিম আগে না মুরগি আগে—কোনোটাই না, শুধু ঝামেলা আগে।",
+  "🤣 ${name}, তুই হইছস বাঘে ছুঁইলে না, শিয়ালে ছিঁড়ে খায়।",
+  "😂 ${name}, তুই হইছস নাচতে না জানলে উঠান বাঁকা।",
+  "🤡 ${name}, তুই হইছস আঙুর ফল টক।",
+  "🐢 ${name}, তুই হইছস ধীরস্থির কচ্ছপ—কিন্তু শেষ পর্যন্ত হারিস।",
+  "🐂 ${name}, তুই হইছস ষাঁড়ের লড়াইয়ের মাঝখানে দাঁড়ানো খুঁটি।",
+  "🪫 ${name}, তুই হইছস জল ছাড়া মাছ।",
+  "😜 ${name}, তুই হইছস শূন্য পাত্র—শব্দ বেশি, ভেতরে কিছু নাই।",
+
+  // ===== Sylheti (7) =====
+  "🤣 ${name}, তুই হইছস লইলাগড়া হাঁস।",
+  "🐸 ${name}, তোর কতা শুনলেই লইচ্চা মাছের মতন লাফাইতে মন চায়।",
+  "😂 ${name}, তুই হইছস কচুরি ফুল—দেহতে সুন্দর, কামে জিরো।",
+  "🥴 ${name}, তোর মাথায় এত গুল, মনে হয় লইচ্চা ঝোলের মতন ভাসা ভাসা।",
+  "🐔 ${name}, তুই হইছস সিলেটি মুরগি—ডিম দেয় না, শুধু ডাকাডাকি।",
+  "😹 ${name}, তুই হইছস সিলেটি টক ঝাল—খাইলে পেটের আগুন লাগে।",
+  "🐒 ${name}, তোর কাজ কাম সিলেটি বাঁদরের মতন—কাপড় চুরি, লাভ নাই।",
+
+  // ===== Cumilla (2) =====
+  "🤡 ${name}, তুই হইছস কুমিল্লার নাটাই—ঘুরাইলে চলে, ছাইরা দিলেই মাটিতে।",
+  "🐟 ${name}, তুই হইছস কুমিল্লার রুই মাছ—আওয়াজ বড়, কাঁটা বেশি।",
+
+  // ===== Old Dhaka (4) =====
+  "🐔 ${name}, তোকে দেহি মুরগির চাল—চিটচিটা, কাজের না।",
+  "🤣 ${name}, তুই হইছস শিঙাড়া—বাইরে মচমচে, ভিতরে আলু ছাড়া কিছু নাই।",
+  "🥴 ${name}, তোরে দেহি পুরান ঢাকার হকার—চিৎকারে দোকান চলে না।",
+  "😂 ${name}, তুই হইছস বুড়িগঙ্গার নৌকা—আধভাঙা, তবুও ভাড়া চাইস।",
+
+  // ===== Barishal (10) =====
+  "🐂 ${name}, তুই হইছস বরিশালের ষাঁড়।",
+  "🤡 ${name}, তোর ভয়েস বরিশালের লঞ্চের হর্ন।",
+  "😂 ${name}, তুই হইছস ঝালমুড়ির কাগজ।",
+  "🥴 ${name}, তুই নদীর মাঝের বাঁশ।",
+  "🐢 ${name}, তুই হইছস বরিশালের ফেরি।",
+  "🐔 ${name}, তুই মুরগির খোপ।",
+  "😹 ${name}, তুই বরিশালের বাতাস।",
+  "🐸 ${name}, তুই খালের ব্যাঙ।",
+  "🤯 ${name}, তুই লঞ্চঘাটের সিঁড়ি।",
+  "🐟 ${name}, তুই বরিশালের ইলিশ।",
+
+  // ===== Chittagong (5) =====
+  "🐔 ${name}, তুই চট্টগ্রামের মুরগি।",
+  "😂 ${name}, তুই কোরবানির হাটের গরু।",
+  "🐟 ${name}, তুই কক্সবাজারের শুকনা মাছ।",
+  "🐒 ${name}, তুই পাহাড়ি বানর।",
+  "🤣 ${name}, তুই পতেঙ্গার বাতাস।",
+
+  // ===== Other regional (6) =====
+  "🐔 ${name}, তুই রাজশাহীর কচুপাতা।",
+  "🤡 ${name}, তুই দিনাজপুরের লিচু।",
+  "🥴 ${name}, তুই খুলনার লবণ।",
+  "🐸 ${name}, তুই রংপুরের ব্যাঙ।",
+  "😂 ${name}, তুই ময়মনসিংহের ইঁদুর।",
+  "🐒 ${name}, তুই টাঙ্গাইলের গামছা।",
+
+  // ===== Tribal (5) =====
+  "🥥 ${name}, তুই চাকমাদের নারকেল—ভিতরে ফাঁকা।",
+  "🐒 ${name}, তোর কাণ্ড মারমাদের পাহাড়ি বানর।",
+  "🍌 ${name}, তুই গারোদের কাঁচা কলা।",
+  "🐔 ${name}, তুই সাঁওতালদের হাঁস।",
+  "😂 ${name}, তুই মণিপুরী নাচ—শব্দ বেশি, বোঝে কেউ না।"
+];
+
+module.exports = {
+  config: {
+    name: "roast",
+    aliases: ["ro"],
+    author: "M H IMRAN",
+    role: 0,
+    shortDescription: "Funny roast lines",
+    longDescription: "Mention বা reply দিলে random roast line দেবে",
+    category: "fun",
+    guide: "{p}roast @mention অথবা {p}roast (reply করে)"
+  },
+
+  onStart: async function ({ message, event, usersData }) {
+    let targetID;
+
+    if (event.messageReply) {
+      targetID = event.messageReply.senderID;
+    } else if (event.mentions && Object.keys(event.mentions).length > 0) {
+      targetID = Object.keys(event.mentions)[0];
+    }
+
+    if (!targetID) {
+      return message.reply("👉 কাউকে mention বা reply করতে হবে!");
+    }
+
+    const userData = await usersData.get(targetID);
+    const name = userData?.name || "এই লোক";
+
+    // Random roast select
+    const line = roastLines[Math.floor(Math.random() * roastLines.length)];
+    message.reply(line.replace("${name}", name));
   }
 };
