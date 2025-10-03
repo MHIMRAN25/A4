@@ -1,4 +1,4 @@
-const { fancySets, toFancy } = require("./utils/Fonts");
+const { fancySets, toFancy } = require("./utils/Fonts.js");
 
 let currentFont = 1;
 
