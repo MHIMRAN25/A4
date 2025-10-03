@@ -1,35 +1,31 @@
-const { fancySets, toFancy } = require("./utils/Fonts.js");
-
-let currentFont = 1;
+const Fonts = require("./utils/fonts.js");
 
 module.exports = {
   config: {
     name: "setfont",
-    version: "2.0",
-    author: "Imran",
-    role: 2,
-    shortDescription: "Change bot reply font",
-    longDescription: "Select which fancy font style bot should use",
-    category: "system",
-    guide: "{p}setfont <number>"
-  },
-
-  onStart: async function ({ message, args }) {
-    const num = parseInt(args[0]);
-
-    // যদি number না দেয় → লিস্ট দেখাও
-    if (!num || !fancySets[num]) {
-      let demoWord = "Bot";
-      let list = Object.keys(fancySets)
-        .map(n => `${n}. ${toFancy(demoWord, n)}`)
-        .join("\n");
-      return message.reply("📌 Available Fancy Fonts:\n\n" + list + "\n\n👉 ব্যবহার: .setfont <number>");
+    aliases: ["font", "fonts"],
+    version: "1.0",
+    author: "Your Name",
+    countDown: 5,
+    role: 0,
+    shortDescription: "Change text style with fonts",
+    longDescription: "Convert your normal text into stylish fonts",
+    category: "fun",
+    guide: {
+      en: "{p}{n} [text]"
     }
-
-    // নাম্বার দিলে সেট করো
-    currentFont = num;
-    message.reply(`✅ Font style changed to: ${num}\n\nDemo: ${toFancy("Bot Activated", num)}`);
   },
 
-  getFont: () => currentFont
+  onStart: async function ({ event, message, args }) {
+    if (!args[0]) return message.reply("⚠️ Please provide some text!");
+    const input = args.join(" ");
+    const styled = Fonts.allFonts(input);
+
+    let msg = "✨ Here are your styled texts:\n\n";
+    styled.forEach((txt, i) => {
+      msg += `${i + 1}. ${txt}\n`;
+    });
+
+    message.reply(msg);
+  }
 };
