@@ -506,10 +506,9 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
 			catch (err) {
 				log.err("CALL COMMAND", `An error occurred when calling the command ${commandName}`, err);
 				return await message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "errorOccurred", time, commandName, removeHomeDir(err.stack ? err.stack.split("\n").slice(0, 5).join("\n") : JSON.stringify(err, null, 2))));
-			}
+			};
 		}
-
-
+	
 		/*
 		 +------------------------------------------------+
 		 |                    ON CHAT                     |
