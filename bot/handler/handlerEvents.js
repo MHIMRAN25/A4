@@ -1,23 +1,30 @@
 const fs = require("fs-extra");
-const setfont = require("../cmds/setfont.js"); // ✅ setfont import করলাম
 const nullAndUndefined = [undefined, null];
+const { applyFont } = require("./scripts/cmds/utils/font.js"); // <-- font utils import
+
+// ============= FONT OVERRIDE WRAPPER =============
+function wrapMessageWithFont(message, threadData) {
+  const originalReply = message.reply;
+  message.reply = async function (text, ...rest) {
+    try {
+      if (typeof text === "string") {
+        const font = threadData?.data?.font || "normal";
+        text = applyFont(text, font); // override font
+      } else if (Array.isArray(text) && typeof text[0] === "string") {
+        const font = threadData?.data?.font || "normal";
+        text[0] = applyFont(text[0], font);
+      }
+    } catch (e) {
+      console.error("Font override error:", e);
+    }
+    return originalReply.call(this, text, ...rest);
+  };
+  return message;
+}
+// =================================================
 
 function getType(obj) {
 	return Object.prototype.toString.call(obj).slice(8, -1);
-}
-
-// =============================================
-// এখানে reply override করলাম যেন সব text এ font সেট হয়
-// =============================================
-function wrapReplyWithFont(message) {
-	if (!message || !message.reply) return;
-	const originalReply = message.reply.bind(message);
-	message.reply = (text, ...args) => {
-		if (typeof text === "string") {
-			text = setfont.applyFont(text); // ✅ font সেট
-		}
-		return originalReply(text, ...args);
-	};
 }
 
 function getRole(threadData, senderID) {
@@ -40,27 +47,150 @@ function getText(type, reason, time, targetID, lang) {
 		return utils.getText({ lang, head: "handlerEvents" }, "onlyAdminBot");
 }
 
-// ==========================
-// নিচে পুরো মূল কোড অপরিবর্তিত থাকবে
-// শুধু message পাস করার পর প্রথমেই wrapReplyWithFont(message) কল করতে হবে
-// ==========================
+function replaceShortcutInLang(text, prefix, commandName) {
+	return text
+		.replace(/\{(?:p|prefix)\}/g, prefix)
+		.replace(/\{(?:n|name)\}/g, commandName)
+		.replace(/\{pn\}/g, `${prefix}${commandName}`);
+}
+
+function getRoleConfig(utils, command, isGroup, threadData, commandName) {
+	let roleConfig;
+	if (utils.isNumber(command.config.role)) {
+		roleConfig = {
+			onStart: command.config.role
+		};
+	}
+	else if (typeof command.config.role == "object" && !Array.isArray(command.config.role)) {
+		if (!command.config.role.onStart)
+			command.config.role.onStart = 0;
+		roleConfig = command.config.role;
+	}
+	else {
+		roleConfig = {
+			onStart: 0
+		};
+	}
+
+	if (isGroup)
+		roleConfig.onStart = threadData.data.setRole?.[commandName] ?? roleConfig.onStart;
+
+	for (const key of ["onChat", "onStart", "onReaction", "onReply"]) {
+		if (roleConfig[key] == undefined)
+			roleConfig[key] = roleConfig.onStart;
+	}
+
+	return roleConfig;
+}
+
+function isBannedOrOnlyAdmin(userData, threadData, senderID, threadID, isGroup, commandName, message, lang) {
+	const config = global.GoatBot.config;
+	const { adminBot, hideNotiMessage } = config;
+
+	const infoBannedUser = userData.banned;
+	if (infoBannedUser.status == true) {
+		const { reason, date } = infoBannedUser;
+		if (hideNotiMessage.userBanned == false)
+			message.reply(getText("userBanned", reason, date, senderID, lang));
+		return true;
+	}
+
+	if (
+		config.adminOnly.enable == true
+		&& !adminBot.includes(senderID)
+		&& !config.adminOnly.ignoreCommand.includes(commandName)
+	) {
+		if (hideNotiMessage.adminOnly == false)
+			message.reply(getText("onlyAdminBot", null, null, null, lang));
+		return true;
+	}
+
+	if (isGroup == true) {
+		if (
+			threadData.data.onlyAdminBox === true
+			&& !threadData.adminIDs.includes(senderID)
+			&& !(threadData.data.ignoreCommanToOnlyAdminBox || []).includes(commandName)
+		) {
+			if (!threadData.data.hideNotiMessageOnlyAdminBox)
+				message.reply(getText("onlyAdminBox", null, null, null, lang));
+			return true;
+		}
+
+		const infoBannedThread = threadData.banned;
+		if (infoBannedThread.status == true) {
+			const { reason, date } = infoBannedThread;
+			if (hideNotiMessage.threadBanned == false)
+				message.reply(getText("threadBanned", reason, date, threadID, lang));
+			return true;
+		}
+	}
+	return false;
+}
+
+
+function createGetText2(langCode, pathCustomLang, prefix, command) {
+	const commandType = command.config.countDown ? "command" : "command event";
+	const commandName = command.config.name;
+	let customLang = {};
+	let getText2 = () => { };
+	if (fs.existsSync(pathCustomLang))
+		customLang = require(pathCustomLang)[commandName]?.text || {};
+	if (command.langs || customLang || {}) {
+		getText2 = function (key, ...args) {
+			let lang = command.langs?.[langCode]?.[key] || customLang[key] || "";
+			lang = replaceShortcutInLang(lang, prefix, commandName);
+			for (let i = args.length - 1; i >= 0; i--)
+				lang = lang.replace(new RegExp(`%${i + 1}`, "g"), args[i]);
+			return lang || `❌ Can't find text on language "${langCode}" for ${commandType} "${commandName}" with key "${key}"`;
+		};
+	}
+	return getText2;
+}
 
 module.exports = function (api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData) {
 	return async function (event, message) {
-
-		// ✅ এখানেই reply override করে দিলাম
-		wrapReplyWithFont(message);
-
 		const { utils, client, GoatBot } = global;
 		const { getPrefix, removeHomeDir, log, getTime } = utils;
 		const { config, configCommands: { envGlobal, envCommands, envEvents } } = GoatBot;
 		const { autoRefreshThreadInfoFirstTime } = config.database;
 		let { hideNotiMessage = {} } = config;
 
-		// বাকি পুরো কোড তোমার মতই থাকবে ↓↓↓
-		// ......................................
-    const fs = require("fs-extra");
-const nullAndUndefined = [undefined, null];
+		const { body, messageID, threadID, isGroup } = event;
+		if (!threadID) return;
+
+		const senderID = event.userID || event.senderID || event.author;
+
+		let threadData = global.db.allThreadData.find(t => t.threadID == threadID);
+		let userData = global.db.allUserData.find(u => u.userID == senderID);
+
+		if (!userData && !isNaN(senderID))
+			userData = await usersData.create(senderID);
+
+		if (!threadData && !isNaN(threadID)) {
+			if (global.temp.createThreadDataError.includes(threadID))
+				return;
+			threadData = await threadsData.create(threadID);
+			global.db.receivedTheFirstMessage[threadID] = true;
+		}
+		else {
+			if (autoRefreshThreadInfoFirstTime === true && !global.db.receivedTheFirstMessage[threadID]) {
+				global.db.receivedTheFirstMessage[threadID] = true;
+				await threadsData.refreshInfo(threadID);
+			}
+		}
+
+		if (typeof threadData.settings.hideNotiMessage == "object")
+			hideNotiMessage = threadData.settings.hideNotiMessage;
+
+		// ========== WRAP MESSAGE HERE ==========
+		message = wrapMessageWithFont(message, threadData);
+		// =======================================
+
+		// rest of your original code continues...
+		// (no change in flow, just message override হয়েছে)
+
+
+
 // const { config } = global.GoatBot;
 // const { utils } = global;
 
