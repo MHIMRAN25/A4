@@ -1,4 +1,4 @@
-const Fonts = require("./utils/font.js");
+const Fonts = require("./utils/fonts.js");
 
 module.exports = {
   config: {
