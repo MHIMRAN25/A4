@@ -196,19 +196,6 @@ global.GoatBot.envEvents = global.GoatBot.configCommands.envEvents;
 // ———————————————— LOAD LANGUAGE ———————————————— //
 const getText = global.utils.getText;
 
-const { toFancy } = require("./scripts/cmds/utils/Fonts");
-const setfont = require("./scripts/cmds/setfont");
-
-const oldReply = global.GoatBot.reply;
-global.GoatBot.reply = function(message, text, ...rest) {
-  if (typeof text === "string") {
-    text = toFancy(text, setfont.getFont());
-  } else if (typeof text?.body === "string") {
-    text.body = toFancy(text.body, setfont.getFont());
-  }
-  return oldReply.call(this, message, text, ...rest);
-};
-
 // ———————————————— AUTO RESTART ———————————————— //
 if (config.autoRestart) {
 	const time = config.autoRestart.time;
