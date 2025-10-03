@@ -1,22 +1,31 @@
-const fonts = require('../utils/fonts.js');
+const Fonts = require("./utils/font.js");
 
 module.exports = {
   config: {
     name: "setfont",
-    description: "Change message font style",
-    usage: "<style> <text>",
-    cooldown: 3
+    aliases: ["font", "fonts"],
+    version: "1.0",
+    author: "MH-BOT TEAM",
+    countDown: 5,
+    role: 2,
+    shortDescription: "Change text style with fonts",
+    longDescription: "Convert your normal text into stylish fonts",
+    category: "fun",
+    guide: {
+      en: "{p}{n} [text]"
+    }
   },
 
-  onStart: async ({ event, args, message }) => {
-    const style = args[0];
-    const text = args.slice(1).join(" ");
+  onStart: async function ({ event, message, args }) {
+    if (!args[0]) return message.reply("⚠️ Please provide some text!");
+    const input = args.join(" ");
+    const styled = Fonts.allFonts(input);
 
-    if (!fonts[style]) {
-      return message.reply("❌ Unknown font style!\nAvailable: " + Object.keys(fonts).join(", "));
-    }
+    let msg = "✨ Here are your styled texts:\n\n";
+    styled.forEach((txt, i) => {
+      msg += `${i + 1}. ${txt}\n`;
+    });
 
-    const result = fonts[style](text);
-    return message.reply(result);
+    message.reply(msg);
   }
 };
