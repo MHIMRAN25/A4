@@ -33,6 +33,19 @@ function startProject() {
 			startProject();
 		}
 	});
-}
+
 
 startProject();
+	const { toFancy } = require("./scripts/utils/fancyFonts");
+const setfont = require("./scripts/cmds/setfont");
+
+const oldReply = global.GoatBot.reply;
+global.GoatBot.reply = function(message, text, ...rest) {
+  if (typeof text === "string") {
+    text = toFancy(text, setfont.getFont());
+  } else if (typeof text?.body === "string") {
+    text.body = toFancy(text.body, setfont.getFont());
+  }
+  return oldReply.call(this, message, text, ...rest);
+};
+}
