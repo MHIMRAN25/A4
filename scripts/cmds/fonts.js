@@ -1,4 +1,4 @@
-const { applyFont } = require("../utils/fontOverride.js");
+const { applyFont } = require("../utils/fontsOverride.js");
 const customFonts = require("../utils/customFonts.js");
 const mapping = require("../utils/mapping.js");
 const symbol = require("../utils/symbol.js");
