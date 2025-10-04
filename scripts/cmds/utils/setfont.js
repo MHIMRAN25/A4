@@ -1,36 +1,47 @@
-const { setFont, getFont, resetFont } = require("../utils/customFonts.js");
-const { applyFont } = require("../utils/fontOverride.js");
+const { setFont, resetFont, getFontData } = require("../utils/fontOverride.js");
 
 module.exports = {
   config: {
-    name: "fonts",
+    name: "setfont",
+    aliases: ["fontset", "changefont"],
     author: "MH-BOT TEAM",
-    role: 0,
-    shortDescription: "Font system menu"
+    role: 1, // শুধু group admin / bot owner
+    shortDescription: "Group এর জন্য font set/reset/show",
+    longDescription: "এই কমান্ড দিয়ে group এর default font পরিবর্তন করতে পারবেন।",
+    category: "Font",
+    guide: {
+      en: "{pn} [fontName | show | reset]"
+    }
   },
 
-  onStart: async function ({ event, message, args }) {
+  onStart: async function ({ message, event, args }) {
     const threadID = event.threadID;
+    const fontsData = getFontData();
 
-    if (args[0] === "menu") {
-      return message.reply("🎨 FONT MENU\n\nF1. Show Current\nF2. Reset\nF3. Change <fontName>");
+    if (args.length === 0) {
+      return message.reply(
+        "🎨 SET FONT MENU\n\n" +
+        "🔹 {pn} show → বর্তমান ফন্ট দেখাও\n" +
+        "🔹 {pn} reset → ডিফল্ট এ রিসেট\n" +
+        "🔹 {pn} [fontName] → নতুন ফন্ট সেট\n\n" +
+        "Example:\n{pn} gothic\n{pn} bubble\n{pn} fancy"
+      );
     }
 
-    if (args[0] === "F1") {
-      const current = getFont(threadID) || "Default";
-      return message.reply(`📌 Current font for this group: ${current}`);
+    const option = args[0].toLowerCase();
+
+    if (option === "show") {
+      const currentFont = fontsData[threadID] || "normal";
+      return message.reply(`📌 এই গ্রুপে বর্তমানে সেট করা ফন্ট: ${currentFont}`);
     }
 
-    if (args[0] === "F2") {
+    if (option === "reset") {
       resetFont(threadID);
-      return message.reply("✅ Font reset to default for this group.");
+      return message.reply("✅ ফন্ট রিসেট করা হলো। এখন সব মেসেজ normal এ আসবে।");
     }
 
-    if (args[0] === "F3") {
-      const fontName = args[1];
-      if (!fontName) return message.reply("⚠️ Please provide a font name!");
-      setFont(threadID, fontName);
-      return message.reply(`✅ Font changed to ${fontName}`);
-    }
+    // ফন্ট সেট করা
+    const newFont = setFont(threadID, option);
+    return message.reply(`✨ নতুন ফন্ট সেট হয়েছে: ${newFont}`);
   }
 };
