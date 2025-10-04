@@ -1,9 +1,9 @@
-const { applyFont } = require("../utils/fontsOverride.js");
-const customFonts = require("../utils/customFonts.js");
-const mapping = require("../utils/mapping.js");
-const symbol = require("../utils/symbol.js");
-const textConvert = require("../utils/textConvert.js");
-const cursive = require("../utils/cursive.js");
+const { applyFont } = require("./utils/fontsOverride.js");
+const customFonts = require("./utils/customFonts.js");
+const mapping = require("./utils/mapping.js");
+const symbol = require("./utils/symbol.js");
+const textConvert = require("./utils/textConvert.js");
+const cursive = require("./utils/cursive.js");
 
 module.exports = {
   config: {
