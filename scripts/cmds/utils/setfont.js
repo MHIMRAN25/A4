@@ -1,4 +1,4 @@
-const { setFont, resetFont, getFontData } = require("../utils/fontOverride.js");
+const { setFont, resetFont, getFontData } = require("../utils/coustomFonts.js");
 
 module.exports = {
   config: {
