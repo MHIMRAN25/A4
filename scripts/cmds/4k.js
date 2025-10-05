@@ -1,59 +1,67 @@
 const axios = require("axios");
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
 
 module.exports = {
   config: {
     name: "4k",
-    aliases: ["hd", "enhance"],
+    aliases: ["hd", "upscale"],
     version: "1.0",
-    author: "MH-BOT TEAM",
+    author: "Imran x GPT-5",
     countDown: 5,
     role: 0,
-    shortDescription: "Convert image to 4K HD",
-    longDescription: "Upscale and enhance any image to 4K HD quality using AI API",
+    shortDescription: "ছবিকে HD/4K তে রূপান্তর করে",
+    longDescription: "রিপ্লাই করা ছবিটাকে 4K কোয়ালিটিতে আপস্কেল করে পাঠায়",
     category: "image",
     guide: {
-      en: "{pn} [reply to image]"
-    }
+      en: "{pn} [reply to image]",
+    },
   },
 
-  onStart: async function ({ api, event, message }) {
-    const { threadID, messageID, type, messageReply } = event;
-
-    if (type !== "message_reply" || !messageReply.attachments[0] || messageReply.attachments[0].type !== "photo") {
-      return message.reply("⚠️ অনুগ্রহ করে কোনো ছবিতে reply করে কমান্ড দিন — উদাহরণ: 4k");
-    }
-
-    const imgUrl = messageReply.attachments[0].url;
-    const msg = await message.reply("🛠️ ছবিটি 4K HD তে রূপান্তর করা হচ্ছে, একটু অপেক্ষা করুন...");
-
+  onStart: async function ({ api, event }) {
     try {
-      // ✅ Use free upscaler API (replace if you have your own)
-      const apiURL = `https://api-inference.huggingface.co/models/camenduru/esrgan`;
-      const response = await axios.post(
-        apiURL,
-        { inputs: imgUrl },
-        {
-          headers: { Authorization: `Bearer hf_your_token_here` },
-          responseType: "arraybuffer"
-        }
-      );
+      const { messageReply, threadID, messageID } = event;
 
-      const outputPath = path.join(__dirname, "cache", `4k_${Date.now()}.png`);
-      fs.writeFileSync(outputPath, Buffer.from(response.data, "binary"));
+      // ✅ Step 1: Check image
+      if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0) {
+        return api.sendMessage("📸 অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
+      }
 
-      await message.reply({
-        body: "✅ 4K HD Version Ready!",
-        attachment: fs.createReadStream(outputPath)
+      const attachment = messageReply.attachments[0];
+      if (attachment.type !== "photo") {
+        return api.sendMessage("❌ শুধু ছবিতে রিপ্লাই দাও!", threadID, messageID);
+      }
+
+      const imageURL = attachment.url;
+      const outputPath = path.join(__dirname, `/cache/4k_${Date.now()}.jpg`);
+
+      api.sendMessage("🔄 ছবিটি 4K তে রূপান্তর হচ্ছে, অনুগ্রহ করে অপেক্ষা করো...", threadID, messageID);
+
+      // ✅ Step 2: Free AI Upscale API ব্যবহার
+      const upscaleAPI = `https://api-inference.huggingface.co/models/Sanster/Lama-Cleaner`;
+
+      const response = await axios({
+        method: "post",
+        url: upscaleAPI,
+        headers: { "Content-Type": "application/json" },
+        data: { image_url: imageURL },
+        responseType: "arraybuffer",
       });
 
-      fs.unlinkSync(outputPath);
-    } catch (err) {
-      console.error(err);
-      message.reply("❌ দুঃখিত, ছবিটা আপস্কেল করা যায়নি!");
-    } finally {
-      api.unsendMessage(msg.messageID);
+      fs.writeFileSync(outputPath, Buffer.from(response.data));
+
+      // ✅ Step 3: Send the upscaled image
+      api.sendMessage(
+        {
+          body: "✅ এখানে তোমার ছবির 4K সংস্করণ!",
+          attachment: fs.createReadStream(outputPath),
+        },
+        threadID,
+        () => fs.unlinkSync(outputPath)
+      );
+    } catch (error) {
+      console.error(error);
+      api.sendMessage("❌ ছবিটা 4K তে রূপান্তর করা যায়নি!", event.threadID, event.messageID);
     }
-  }
+  },
 };
