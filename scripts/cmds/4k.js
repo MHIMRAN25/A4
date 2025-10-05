@@ -6,15 +6,15 @@ module.exports = {
   config: {
     name: "4k",
     aliases: ["hd", "8k", "upscale"],
-    version: "4.0",
+    version: "3.0",
     author: "Imran x GPT-5",
     countDown: 5,
     role: 0,
-    shortDescription: "ছবিকে HD/4K/8K তে রূপান্তর করে",
-    longDescription: "১০টি fallback API ব্যবহার করে ছবির কোয়ালিটি উন্নত করে",
+    shortDescription: "ছবিকে 4K বা 8K তে রূপান্তর করে",
+    longDescription: "AI ব্যবহার করে ছবির রেজোলিউশন বাড়ায় (HD / 4K / 8K)",
     category: "image",
     guide: {
-      en: "{pn} (reply to image)",
+      en: "{pn} [reply to image]",
     },
   },
 
@@ -22,73 +22,60 @@ module.exports = {
     const { messageReply, threadID, messageID } = event;
 
     if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
-      return api.sendMessage("📸 কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
+      return api.sendMessage("📸 অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
 
     const attachment = messageReply.attachments[0];
     if (attachment.type !== "photo")
       return api.sendMessage("❌ শুধু ছবিতে রিপ্লাই দাও!", threadID, messageID);
 
     const imageURL = attachment.url;
-    const outputPath = path.join(__dirname, `/cache/4k_${Date.now()}.jpg`);
-    api.sendMessage("🔄 ছবিটি 4K/8K তে রূপান্তর হচ্ছে, অনুগ্রহ করে অপেক্ষা করো...", threadID, messageID);
+    const outputPath = path.join(__dirname, `/cache/upscaled_${Date.now()}.jpg`);
 
-    // === প্রথমে ছবির ডেটা নিয়ে আসা (Buffer) ===
-    let imgBuffer;
-    try {
-      const imgRes = await axios.get(imageURL, { responseType: "arraybuffer" });
-      imgBuffer = Buffer.from(imgRes.data);
-    } catch (err) {
-      return api.sendMessage("❌ ছবিটি লোড করা যাচ্ছে না!", threadID, messageID);
-    }
-
-    // === ১০টি API fallback ===
     const apis = [
-      `https://image-upscaler-v2.vercel.app/api`, // #1
-      `https://imageai.upscaler.workers.dev/`,    // #2
-      `https://photoai.upscale.workers.dev/`,     // #3
-      `https://upscale-img.vercel.app/api`,       // #4
-      `https://img-upscale.cyclic.app/api`,       // #5
-      `https://cdn-ai-upscale.vercel.app/api`,    // #6
-      `https://ai-image-upscale-1.vercel.app/api`,// #7
-      `https://image-superres-api.vercel.app/api`,// #8
-      `https://upscale-free-api.vercel.app/api`,  // #9
-      `https://cf-image-upscale.workers.dev/`     // #10
+      "https://image-upscale.vercel.app/api/upscale?url=",
+      "https://ai-image-enhance.vercel.app/api?img=",
+      "https://imgupscaler-free.vercel.app/api?image=",
+      "https://free-upscale-api.vercel.app/upscale?image=",
+      "https://hdimage-restoration.vercel.app/api?url=",
+      "https://upscale-8k.vercel.app/api/upscale?img=",
+      "https://photoenhancer-ai.vercel.app/api?image=",
+      "https://imageboost.vercel.app/api/upscale?url=",
+      "https://enhanceai-img.vercel.app/api?image=",
+      "https://superresizer.vercel.app/api?url=",
+      "https://imgai.vercel.app/upscale?image=",
+      "https://sharpimage.vercel.app/api?img=",
+      "https://clarifyai.vercel.app/api/upscale?url=",
+      "https://picupscale.vercel.app/api?image=",
+      "https://nextgen-upscale.vercel.app/api/upscale?url="
     ];
+
+    api.sendMessage("🔄 ছবিটি 4K/8K তে রূপান্তর হচ্ছে, অনুগ্রহ করে অপেক্ষা করো...", threadID, messageID);
 
     let success = false;
 
-    for (const apiURL of apis) {
+    for (const link of apis) {
       try {
-        const res = await axios.post(apiURL, imgBuffer, {
-          headers: { "Content-Type": "application/octet-stream" },
-          responseType: "arraybuffer",
-        });
-        if (res.status === 200) {
-          fs.writeFileSync(outputPath, Buffer.from(res.data));
-          success = true;
-          break;
-        }
+        const res = await axios.get(`${link}${encodeURIComponent(imageURL)}`, { responseType: "arraybuffer", timeout: 30000 });
+        fs.writeFileSync(outputPath, Buffer.from(res.data));
+
+        api.sendMessage(
+          {
+            body: "✅ এখানে তোমার ছবির 4K/8K সংস্করণ!",
+            attachment: fs.createReadStream(outputPath),
+          },
+          threadID,
+          () => fs.unlinkSync(outputPath)
+        );
+
+        success = true;
+        break;
       } catch (err) {
-        console.warn(`⚠️ Fallback failed on ${apiURL} - ${err.response?.status || err.message}`);
-        continue;
+        console.log(`❌ Failed: ${link}`);
       }
     }
 
     if (!success) {
-      return api.sendMessage(
-        "❌ ছবিটা 4K/8K তে রূপান্তর করা যায়নি! সব সার্ভার ব্যস্ত। পরে আবার চেষ্টা করো।",
-        threadID,
-        messageID
-      );
+      api.sendMessage("❌ ছবিটা 4K/8K তে রূপান্তর করা যায়নি! সব সার্ভার ব্যস্ত। কিছুক্ষণ পরে চেষ্টা করো।", threadID, messageID);
     }
-
-    api.sendMessage(
-      {
-        body: "✅ এখানে তোমার 4K/8K সংস্করণ!",
-        attachment: fs.createReadStream(outputPath),
-      },
-      threadID,
-      () => fs.unlinkSync(outputPath)
-    );
   },
 };
