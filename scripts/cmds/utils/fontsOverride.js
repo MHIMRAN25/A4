@@ -1,3 +1,4 @@
+git add . && git commit -m "🆕 Updated setfont & fontOverride system" && git push
 const fs = require("fs-extra");
 const path = require("path");
 
