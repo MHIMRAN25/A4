@@ -6,12 +6,12 @@ module.exports = {
   config: {
     name: "4k",
     aliases: ["hd", "upscale"],
-    version: "2.0",
-    author: "Imran x GPT-5",
+    version: "3.1-Free",
+    author: "Imran x GPT-5 (Free API)",
     countDown: 5,
     role: 0,
-    shortDescription: "ছবিকে 4K তে রূপান্তর করে",
-    longDescription: "AI ব্যবহার করে ছবির রেজোলিউশন বাড়ায় (HD / 4K)",
+    shortDescription: "ছবিকে 4K তে রূপান্তর করে (Free API)",
+    longDescription: "ফ্রি AI আপস্কেল ইঞ্জিন ব্যবহার করে ছবির রেজোলিউশন বাড়ায় (HD / 4K)।",
     category: "image",
     guide: {
       en: "{pn} [reply to image]",
@@ -21,6 +21,7 @@ module.exports = {
   onStart: async function ({ api, event }) {
     const { messageReply, threadID, messageID } = event;
 
+    // ✅ Step 1: Check reply
     if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
       return api.sendMessage("📸 অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
 
@@ -31,31 +32,28 @@ module.exports = {
     const imageURL = attachment.url;
     const outputPath = path.join(__dirname, `/cache/4k_${Date.now()}.jpg`);
 
-    api.sendMessage("🔄 ছবিটি 4K তে রূপান্তর হচ্ছে, অনুগ্রহ করে অপেক্ষা করো...", threadID, messageID);
+    api.sendMessage("অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করো 💫", threadID, messageID);
 
     try {
-      // ✅ DeepAI Upscale API (free)
-      const response = await axios({
-        method: "post",
-        url: "https://api.deepai.org/api/torch-srgan",
-        headers: { "api-key": "quickstart-QUdJIGlzIGNvbWluZy4uLi4K" },
-        data: { image: imageURL },
-      });
+      // ✅ Step 2: Use Free AI Upscale API (No token needed)
+      const apiURL = `https://image-upscale-api.vercel.app/upscale?image=${encodeURIComponent(imageURL)}`;
+      const response = await axios.get(apiURL, { responseType: "arraybuffer" });
 
-      const resultURL = response.data.output_url;
-      if (!resultURL) throw new Error("No output URL");
+      // ✅ Step 3: Save 4K image
+      fs.writeFileSync(outputPath, Buffer.from(response.data));
 
-      const img = await axios.get(resultURL, { responseType: "arraybuffer" });
-      fs.writeFileSync(outputPath, Buffer.from(img.data));
-
+      // ✅ Step 4: Send result
       api.sendMessage(
-        { body: "✅ এখানে তোমার ছবির 4K সংস্করণ!", attachment: fs.createReadStream(outputPath) },
+        {
+          body: "✅ এখানে তোমার ছবির 4K সংস্করণ (Free AI) ✨",
+          attachment: fs.createReadStream(outputPath),
+        },
         threadID,
         () => fs.unlinkSync(outputPath)
       );
-    } catch (err) {
-      console.error(err);
-      api.sendMessage("❌ ছবিটি 4K তে রূপান্তর করা যায়নি!", threadID, messageID);
+    } catch (error) {
+      console.error(error);
+      api.sendMessage("❌ ছবিটা 4K তে রূপান্তর করা যায়নি! পরে আবার চেষ্টা করো।", threadID, messageID);
     }
   },
 };
