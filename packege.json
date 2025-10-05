@@ -1,0 +1,25 @@
+{
+  "name": "goatbot-v2",
+  "version": "1.5.35",
+  "description": "Advanced Messenger Bot (GoatBot V2) with Font System by MH-BOT TEAM",
+  "main": "index.js",
+  "scripts": {
+    "start": "npm install && node index.js"
+  },
+  "author": "MH-BOT TEAM",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.2",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
+    "fs-extra": "^11.2.0",
+    "moment-timezone": "^0.5.45",
+    "node-fetch": "^3.3.2",
+    "path": "^0.12.7",
+    "readline-sync": "^1.4.10",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
