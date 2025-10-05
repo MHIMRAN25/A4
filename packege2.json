@@ -4,7 +4,8 @@
   "description": "Advanced Messenger Bot (GoatBot V2) with Font System by MH-BOT TEAM",
   "main": "index.js",
   "scripts": {
-    "start": "npm install && node index.js"
+    "start": "npm install && node index.js",
+    "commit": "git add . && git commit -m '🧩 Auto Commit: update bot system' && git push"
   },
   "author": "MH-BOT TEAM",
   "license": "MIT",
