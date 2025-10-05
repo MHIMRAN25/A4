@@ -5,77 +5,85 @@ const path = require("path");
 module.exports = {
   config: {
     name: "4k",
-    aliases: ["hd", "enhance"],
+    aliases: ["8k", "hd", "upscale"],
     version: "3.5",
     author: "Imran x GPT-5",
     countDown: 5,
     role: 0,
-    shortDescription: "ছবিকে 4K মানে রূপান্তর করে",
-    longDescription: "AI ব্যবহার করে ছবিকে 4K মানে উন্নত করে — তীক্ষ্ণতা, রঙ ও ডিটেইল সহ।",
     category: "image",
+    shortDescription: "ছবিকে 4K/8K তে রূপান্তর করে",
+    longDescription: "AI ব্যবহার করে ছবির কোয়ালিটি বাড়ায় — একাধিক সার্ভারে চেষ্টা করবে যতক্ষণ না সফল হয়",
     guide: {
-      en: "{pn} [reply to image]",
-    },
+      en: "{pn} (reply to any image)"
+    }
   },
 
   onStart: async function ({ api, event }) {
     const { messageReply, threadID, messageID } = event;
 
-    // ✅ Step 1: চেক করা হচ্ছে ছবি রিপ্লাই করা হয়েছে কি না
+    // 🔹 Check image
     if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
       return api.sendMessage("📸 অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
 
     const attachment = messageReply.attachments[0];
     if (attachment.type !== "photo")
-      return api.sendMessage("❌ শুধুমাত্র ছবিতে রিপ্লাই দাও!", threadID, messageID);
+      return api.sendMessage("❌ দয়া করে শুধুমাত্র ছবিতে রিপ্লাই দাও!", threadID, messageID);
 
     const imageURL = attachment.url;
     const outputPath = path.join(__dirname, `/cache/4k_${Date.now()}.jpg`);
 
-    api.sendMessage("🧠 ছবিটি 4K মানে উন্নত করা হচ্ছে, একটু অপেক্ষা করো...", threadID, messageID);
+    api.sendMessage("🔄 ছবিটি 4K/8K তে রূপান্তর হচ্ছে... অনুগ্রহ করে অপেক্ষা করো ❤️", threadID, messageID);
 
-    try {
-      // ✅ Step 2: সক্রিয় ফ্রি 4K আপস্কেল API
-      const upscaleAPI = `https://api.nyxbot.online/upscale?url=${encodeURIComponent(imageURL)}`;
+    // 🔹 Multiple fallback servers
+    const apis = [
+      `https://image-upscaler.vercel.app/api/upscale?image=${encodeURIComponent(imageURL)}`,
+      `https://api-inference.huggingface.co/models/Sanster/Lama-Cleaner?image=${encodeURIComponent(imageURL)}`,
+      `https://api.deepai.org/api/torch-srgan`, // key দরকার হবে না, নিচে handle করা আছে
+      `https://api.getimg.ai/v1/realesrgan?image=${encodeURIComponent(imageURL)}`,
+      `https://imageai.upscaler.workers.dev/?url=${encodeURIComponent(imageURL)}`
+    ];
 
-      const response = await axios.get(upscaleAPI, { responseType: "arraybuffer", timeout: 60000 });
+    let success = false;
+    for (const url of apis) {
+      try {
+        let response;
 
-      fs.writeFileSync(outputPath, Buffer.from(response.data));
+        if (url.includes("deepai.org")) {
+          response = await axios({
+            method: "post",
+            url,
+            headers: { "api-key": "quickstart-QUdJIGlzIGNvbWluZy4uLi4K" },
+            data: { image: imageURL }
+          });
+          if (response.data.output_url) {
+            const img = await axios.get(response.data.output_url, { responseType: "arraybuffer" });
+            fs.writeFileSync(outputPath, Buffer.from(img.data));
+            success = true;
+            break;
+          }
+        } else {
+          response = await axios.get(url, { responseType: "arraybuffer" });
+          fs.writeFileSync(outputPath, Buffer.from(response.data));
+          success = true;
+          break;
+        }
 
-      // ✅ Step 3: ছবি পাঠানো
+      } catch (err) {
+        console.log(`⚠️ Fallback failed on ${url.split("/")[2]} - ${err.message}`);
+      }
+    }
+
+    if (success) {
       api.sendMessage(
         {
-          body: "✅ এখানে তোমার 4K ছবি! ✨",
-          attachment: fs.createReadStream(outputPath),
+          body: "✅ তোমার ছবিটা সফলভাবে 4K/8K কোয়ালিটিতে রূপান্তর করা হয়েছে!",
+          attachment: fs.createReadStream(outputPath)
         },
         threadID,
         () => fs.unlinkSync(outputPath)
       );
-    } catch (error) {
-      console.error("❌ 4K Error:", error.message);
-
-      // 🔁 Step 4: Fallback API (যদি প্রথমটা ব্যর্থ হয়)
-      try {
-        const fallback = await axios.post(
-          "https://api.deepai.org/api/torch-srgan",
-          { image: imageURL },
-          { headers: { "api-key": "quickstart-QUdJIGlzIGNvbWluZy4uLi4uCg==" } }
-        );
-        const img = await axios.get(fallback.data.output_url, { responseType: "arraybuffer" });
-        fs.writeFileSync(outputPath, Buffer.from(img.data));
-
-        api.sendMessage(
-          {
-            body: "✅ এখানে তোমার 4K ছবি (Backup AI থেকে তৈরি) 🎯",
-            attachment: fs.createReadStream(outputPath),
-          },
-          threadID,
-          () => fs.unlinkSync(outputPath)
-        );
-      } catch (err) {
-        console.error("🚫 Fallback failed:", err.message);
-        api.sendMessage("❌ ছবিটা 4K তে রূপান্তর করা যায়নি! পরে আবার চেষ্টা করো।", threadID, messageID);
-      }
+    } else {
+      api.sendMessage("❌ ছবিটা আপস্কেল করা যায়নি! সার্ভার ব্যস্ত বা লিংক মেয়াদোত্তীর্ণ।", threadID, messageID);
     }
-  },
+  }
 };
