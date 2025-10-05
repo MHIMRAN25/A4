@@ -5,85 +5,76 @@ const path = require("path");
 module.exports = {
   config: {
     name: "4k",
-    aliases: ["8k", "hd", "upscale"],
+    aliases: ["hd", "upscale", "8k"],
     version: "3.5",
     author: "Imran x GPT-5",
     countDown: 5,
     role: 0,
+    shortDescription: "ছবিকে 4K বা 8K তে রূপান্তর করে",
+    longDescription: "AI ব্যবহার করে ছবির কোয়ালিটি উন্নত করে (HD, 4K, 8K পর্যন্ত)",
     category: "image",
-    shortDescription: "ছবিকে 4K/8K তে রূপান্তর করে",
-    longDescription: "AI ব্যবহার করে ছবির কোয়ালিটি বাড়ায় — একাধিক সার্ভারে চেষ্টা করবে যতক্ষণ না সফল হয়",
     guide: {
-      en: "{pn} (reply to any image)"
-    }
+      en: "{pn} (reply to image)",
+    },
   },
 
   onStart: async function ({ api, event }) {
     const { messageReply, threadID, messageID } = event;
 
-    // 🔹 Check image
-    if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
+    if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0) {
       return api.sendMessage("📸 অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
+    }
 
     const attachment = messageReply.attachments[0];
-    if (attachment.type !== "photo")
-      return api.sendMessage("❌ দয়া করে শুধুমাত্র ছবিতে রিপ্লাই দাও!", threadID, messageID);
+    if (attachment.type !== "photo") {
+      return api.sendMessage("❌ শুধু ছবিতে রিপ্লাই দাও!", threadID, messageID);
+    }
 
     const imageURL = attachment.url;
     const outputPath = path.join(__dirname, `/cache/4k_${Date.now()}.jpg`);
+    api.sendMessage("🔄 ছবিটি 4K/8K তে রূপান্তর হচ্ছে, অনুগ্রহ করে অপেক্ষা করো...", threadID, messageID);
 
-    api.sendMessage("🔄 ছবিটি 4K/8K তে রূপান্তর হচ্ছে... অনুগ্রহ করে অপেক্ষা করো ❤️", threadID, messageID);
-
-    // 🔹 Multiple fallback servers
+    // === ৫টি API fallback ===
     const apis = [
-      `https://image-upscaler.vercel.app/api/upscale?image=${encodeURIComponent(imageURL)}`,
-      `https://api-inference.huggingface.co/models/Sanster/Lama-Cleaner?image=${encodeURIComponent(imageURL)}`,
-      `https://api.deepai.org/api/torch-srgan`, // key দরকার হবে না, নিচে handle করা আছে
-      `https://api.getimg.ai/v1/realesrgan?image=${encodeURIComponent(imageURL)}`,
+      `https://image-upscaler-v2.vercel.app/api?url=${encodeURIComponent(imageURL)}`,
+      `https://api-inference.huggingface.co/models/Sanster/Lama-Cleaner`,
+      `https://api.deepai.org/api/torch-srgan`,
+      `https://api.getimg.ai/v1/transform/upscale?image=${encodeURIComponent(imageURL)}`,
       `https://imageai.upscaler.workers.dev/?url=${encodeURIComponent(imageURL)}`
     ];
 
     let success = false;
-    for (const url of apis) {
-      try {
-        let response;
 
-        if (url.includes("deepai.org")) {
-          response = await axios({
-            method: "post",
-            url,
-            headers: { "api-key": "quickstart-QUdJIGlzIGNvbWluZy4uLi4K" },
-            data: { image: imageURL }
-          });
-          if (response.data.output_url) {
-            const img = await axios.get(response.data.output_url, { responseType: "arraybuffer" });
-            fs.writeFileSync(outputPath, Buffer.from(img.data));
-            success = true;
-            break;
-          }
-        } else {
-          response = await axios.get(url, { responseType: "arraybuffer" });
-          fs.writeFileSync(outputPath, Buffer.from(response.data));
+    for (const apiURL of apis) {
+      try {
+        const res = await axios.get(apiURL, { responseType: "arraybuffer" });
+        if (res.status === 200) {
+          fs.writeFileSync(outputPath, Buffer.from(res.data));
           success = true;
           break;
         }
-
       } catch (err) {
-        console.log(`⚠️ Fallback failed on ${url.split("/")[2]} - ${err.message}`);
+        console.warn(`⚠️ Fallback failed on ${apiURL} - ${err.response?.status || err.message}`);
+        continue;
       }
     }
 
-    if (success) {
-      api.sendMessage(
-        {
-          body: "✅ তোমার ছবিটা সফলভাবে 4K/8K কোয়ালিটিতে রূপান্তর করা হয়েছে!",
-          attachment: fs.createReadStream(outputPath)
-        },
+    if (!success) {
+      return api.sendMessage(
+        "❌ ছবিটা 4K তে রূপান্তর করা যায়নি! সার্ভারগুলো ব্যস্ত বা ছবির লিংক মেয়াদোত্তীর্ণ। কিছুক্ষণ পর আবার চেষ্টা করো।",
         threadID,
-        () => fs.unlinkSync(outputPath)
+        messageID
       );
-    } else {
-      api.sendMessage("❌ ছবিটা আপস্কেল করা যায়নি! সার্ভার ব্যস্ত বা লিংক মেয়াদোত্তীর্ণ।", threadID, messageID);
     }
-  }
+
+    // === ছবি সফলভাবে পাঠানো ===
+    api.sendMessage(
+      {
+        body: "✅ এখানে তোমার 4K/8K সংস্করণ!",
+        attachment: fs.createReadStream(outputPath),
+      },
+      threadID,
+      () => fs.unlinkSync(outputPath)
+    );
+  },
 };
