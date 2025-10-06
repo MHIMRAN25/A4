@@ -1,81 +1,57 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
+require("dotenv").config();
 
 module.exports = {
   config: {
     name: "4k",
-    aliases: ["hd", "8k", "upscale"],
-    version: "3.0",
-    author: "Imran x GPT-5",
+    aliases: ["4k", "superhd"],
+    version: "1.0",
+    author: "MH-TEAM",
     countDown: 5,
     role: 0,
-    shortDescription: "ছবিকে 4K বা 8K তে রূপান্তর করে",
-    longDescription: "AI ব্যবহার করে ছবির রেজোলিউশন বাড়ায় (HD / 4K / 8K)",
-    category: "image",
+    shortDescription: "Enhance image to 4K using Real-ESRGAN",
+    longDescription: "Uses the Hugging Face Real-ESRGAN model to upscale any image to 4x (4K quality).",
+    category: "utility",
     guide: {
-      en: "{pn} [reply to image]",
-    },
+      en: "{pn} <image URL or reply with an image>"
+    }
   },
 
-  onStart: async function ({ api, event }) {
-    const { messageReply, threadID, messageID } = event;
+  onStart: async function ({ event, message, args }) {
+    try {
+      let imageUrl;
 
-    if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
-      return api.sendMessage("📸 অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .4k", threadID, messageID);
-
-    const attachment = messageReply.attachments[0];
-    if (attachment.type !== "photo")
-      return api.sendMessage("❌ শুধু ছবিতে রিপ্লাই দাও!", threadID, messageID);
-
-    const imageURL = attachment.url;
-    const outputPath = path.join(__dirname, `/cache/upscaled_${Date.now()}.jpg`);
-
-    const apis = [
-      "https://image-upscale.vercel.app/api/upscale?url=",
-      "https://ai-image-enhance.vercel.app/api?img=",
-      "https://imgupscaler-free.vercel.app/api?image=",
-      "https://free-upscale-api.vercel.app/upscale?image=",
-      "https://hdimage-restoration.vercel.app/api?url=",
-      "https://upscale-8k.vercel.app/api/upscale?img=",
-      "https://photoenhancer-ai.vercel.app/api?image=",
-      "https://imageboost.vercel.app/api/upscale?url=",
-      "https://enhanceai-img.vercel.app/api?image=",
-      "https://superresizer.vercel.app/api?url=",
-      "https://imgai.vercel.app/upscale?image=",
-      "https://sharpimage.vercel.app/api?img=",
-      "https://clarifyai.vercel.app/api/upscale?url=",
-      "https://picupscale.vercel.app/api?image=",
-      "https://nextgen-upscale.vercel.app/api/upscale?url="
-    ];
-
-    api.sendMessage("🔄 ছবিটি 4K/8K তে রূপান্তর হচ্ছে, অনুগ্রহ করে অপেক্ষা করো...", threadID, messageID);
-
-    let success = false;
-
-    for (const link of apis) {
-      try {
-        const res = await axios.get(`${link}${encodeURIComponent(imageURL)}`, { responseType: "arraybuffer", timeout: 30000 });
-        fs.writeFileSync(outputPath, Buffer.from(res.data));
-
-        api.sendMessage(
-          {
-            body: "✅ এখানে তোমার ছবির 4K/8K সংস্করণ!",
-            attachment: fs.createReadStream(outputPath),
-          },
-          threadID,
-          () => fs.unlinkSync(outputPath)
-        );
-
-        success = true;
-        break;
-      } catch (err) {
-        console.log(`❌ Failed: ${link}`);
+      if (event.messageReply && event.messageReply.attachments && event.messageReply.attachments[0]?.url) {
+        imageUrl = event.messageReply.attachments[0].url;
+      } else if (args[0]) {
+        imageUrl = args[0];
+      } else {
+        return message.reply("📸 Please reply to an image or provide a valid image URL!");
       }
-    }
 
-    if (!success) {
-      api.sendMessage("❌ ছবিটা 4K/8K তে রূপান্তর করা যায়নি! সব সার্ভার ব্যস্ত। কিছুক্ষণ পরে চেষ্টা করো।", threadID, messageID);
+      message.reply("🔄 Enhancing your image to 4K... please wait a few seconds!");
+
+      const response = await axios({
+        method: "POST",
+        url: "https://api-inference.huggingface.co/models/caidas/swin2SR-classical-sr-x4-64",
+        headers: {
+          Authorization: `Bearer ${process.env.HF_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        data: JSON.stringify({ inputs: imageUrl }),
+        responseType: "arraybuffer",
+      });
+
+      if (!response.data) return message.reply("❌ Failed to process the image. Try again later.");
+
+      message.reply({
+        body: "✅ Successfully enhanced your image to 4K quality!",
+        attachment: Buffer.from(response.data, "binary"),
+      });
+
+    } catch (err) {
+      console.error(err);
+      message.reply("⚠️ Error while enhancing image! Please check your Hugging Face API token.");
     }
-  },
+  }
 };
