@@ -1,117 +1,98 @@
-const fs = require("fs");
+const fs = require("fs-extra");
+const axios = require("axios");
 const path = require("path");
+const { getPrefix } = global.utils;
+const { commands, aliases } = global.GoatBot;
 
-module.exports.info = {
-  name: "help",
-  version: "16.5.0",
-  description: "Royal Black-Gold Command Menu with Video + Audio Intro",
-  example: "/help or /help <command>",
-  credit: "MH-BOT TEAM + GPT-5",
-  category: "⚙️ System",
-  hasPermission: 0,
-  cooldown: 3
-};
+module.exports = {
+  config: {
+    name: "help",
+    version: "2.1",
+    author: "Nirob + GPT5",
+    countDown: 5,
+    role: 0,
+    shortDescription: {
+      en: "Premium styled dark help menu",
+    },
+    longDescription: {
+      en: "Show all commands in premium dark menu style",
+    },
+    category: "info",
+    guide: {
+      en: "{pn} or {pn} [commandName]",
+    },
+    priority: 1,
+  },
 
-module.exports.run = async (api, threadID, thread_type, { args }) => {
-  try {
-    // === 1️⃣ VIDEO + AUDIO PATH ===
-    const videoPath = path.join(__dirname, "assists", "video", "menu.mp4");
-    const audioPath = path.join(__dirname, "assists", "music", "royal_intro.mp3");
+  onStart: async function ({ message, args, event, threadsData, role }) {
+    const { threadID } = event;
+    const threadData = await threadsData.get(threadID);
+    const prefix = getPrefix(threadID);
 
-    // === 2️⃣ SEND VIDEO (if exists) ===
-    if (fs.existsSync(videoPath)) {
-      api.sendMessage({
-        body: "👑 𝗠𝗛-𝗕𝗢𝗧 𝗥𝗢𝗬𝗔𝗟 𝗦𝗬𝗦𝗧𝗘𝗠 👑",
-        attachment: fs.createReadStream(videoPath)
-      }, threadID);
-    }
+    // 🧭 If no command name given → Show full menu
+    if (args.length === 0) {
+      const categories = {};
+      let msg = "╭───────────────★\n│ ⚡ 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐌𝐄𝐍𝐔 ⚡\n│───────────────★";
 
-    // === 3️⃣ PLAY MUSIC (if exists) ===
-    if (fs.existsSync(audioPath)) {
-      api.sendMessage({
-        body: "🎵 𝗥𝗼𝘆𝗮𝗹 𝗜𝗻𝘁𝗿𝗼 𝗠𝘂𝘀𝗶𝗰 🎵",
-        attachment: fs.createReadStream(audioPath)
-      }, threadID);
-    }
-
-    // === 4️⃣ LOAD COMMANDS ===
-    const CMD_DIR = path.join(__dirname, "/");
-    const files = fs.readdirSync(CMD_DIR).filter(f => f.endsWith(".js"));
-    const commands = [];
-
-    for (const file of files) {
-      const cmd = require(path.join(CMD_DIR, file));
-      if (cmd.info && cmd.info.name !== "help") {
-        commands.push({
-          name: cmd.info.name,
-          desc: cmd.info.description || "No description",
-          category: cmd.info.category || "📦 Others",
-          credit: cmd.info.credit || "Unknown",
-          example: cmd.info.example || "No example"
-        });
+      for (const [name, value] of commands) {
+        if (value.config.role > 1 && role < value.config.role) continue;
+        const category = value.config.category || "Uncategorized";
+        if (!categories[category]) categories[category] = [];
+        categories[category].push(name);
       }
+
+      Object.keys(categories).forEach(category => {
+        msg += `\n\n╭─✦ ${category.toUpperCase()} ✦`;
+        const names = categories[category].sort();
+        for (let i = 0; i < names.length; i += 2) {
+          const line = names.slice(i, i + 2).map(item => `⚡ ${item}`).join("    ");
+          msg += `\n│ ${line}`;
+        }
+        msg += `\n╰─────────────★`;
+      });
+
+      const total = commands.size;
+      msg += `\n\n╭─★ INFO ★\n│ 🔸 Total Commands: ${total}\n│ 🔸 Prefix: ${prefix}\n│ 🔸 Type "${prefix}help <cmd>" for details\n╰──────────────★\n\n✨ ᴅᴇsɪɢɴᴇᴅ ʙʏ ɴɪʀᴏʙ ✦`;
+
+      // 🎬 Only your provided video link
+      const helpListImage = "https://files.catbox.moe/xhw0uk.mp4";
+
+      await message.reply({
+        body: msg,
+        attachment: await global.utils.getStreamFromURL(helpListImage)
+      });
+    } 
+    // 🧩 If command name given → Show detailed info
+    else {
+      const name = args[0].toLowerCase();
+      const command = commands.get(name) || commands.get(aliases.get(name));
+      if (!command) return message.reply(`❌ Command "${name}" not found.`);
+
+      const conf = command.config;
+      const usage = conf.guide?.en?.replace(/{pn}/g, prefix + conf.name) || "No usage info.";
+
+      const info = `
+╭───────────★
+│ ⚙️ 𝗖𝗢𝗠𝗠𝗔𝗡𝗗: ${conf.name}
+│───────────────────★
+│ 🧠 𝗗𝗲𝘀𝗰: ${conf.longDescription?.en || "No description"}
+│ 👑 𝗔𝘂𝘁𝗵𝗼𝗿: ${conf.author || "Unknown"}
+│ ⚙️ 𝗩𝗲𝗿𝘀𝗶𝗼𝗻: ${conf.version || "1.0"}
+│ 🔰 𝗥𝗼𝗹𝗲: ${roleText(conf.role)}
+│ 📘 𝗨𝘀𝗮𝗴𝗲: ${usage}
+╰───────────★
+⚡ ᴄᴏᴍᴍᴀɴᴅ ᴍᴇɴᴜ | ɴɪʀᴏʙ ✦`;
+
+      await message.reply(info);
     }
-
-    const categories = {};
-    for (const c of commands) {
-      if (!categories[c.category]) categories[c.category] = [];
-      categories[c.category].push(c);
-    }
-
-    if (args[0]) {
-      const query = args[0].toLowerCase();
-      const cmd = commands.find(c => c.name.toLowerCase() === query);
-      if (!cmd) return api.sendMessage(`❌ "${query}" নামে কোনো command খুঁজে পাওয়া যায়নি!`, threadID);
-
-      const detail = `
-╭═══════════════════════╮
-✨ 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐃𝐄𝐓𝐀𝐈𝐋 ✨
-╰═══════════════════════╯
-🔸 নাম: ${cmd.name}
-📖 বিবরণ: ${cmd.desc}
-🏷️ ক্যাটাগরি: ${cmd.category}
-👑 ক্রেডিট: ${cmd.credit}
-💡 উদাহরণ: ${cmd.example}
-━━━━━━━━━━━━━━━━━━━
-🖤 MH_BOT | Royal Gold Menu
-`;
-      return api.sendMessage(detail, threadID);
-    }
-
-    // === 5️⃣ COMMAND MENU ===
-    let msg = `
-╔═━──━──━──━──━──━═╗
-👑 ＣＯＭＭＡＮＤ ＭＥＮＵ 👑
-╚═━──━──━──━──━──━═╝
-━━━━━━━━━━━━━━━━━━━
-⚙️ Developer: MH-BOT TEAM
-📜 Version: 16.5.0
-💬 Use: /help <command>
-━━━━━━━━━━━━━━━━━━━
-`;
-
-    const icons = ["💛", "⚜️", "👑", "💎", "🌟"];
-    let i = 0;
-
-    for (const [cat, cmds] of Object.entries(categories)) {
-      const icon = icons[i % icons.length];
-      msg += `\n${icon}  ${cat.toUpperCase()}  ${icon}\n`;
-      msg += `━━━━━━━━━━━━━━━━━━━\n`;
-      msg += cmds.map(c => `✨ ${c.name}`).join("   ");
-      msg += `\n━━━━━━━━━━━━━━━━━━━\n`;
-      i++;
-    }
-
-    msg += `
-💎 Total Commands: ${commands.length}
-👑 Credit: MH-BOT TEAM | Royal Black-Gold Edition
-━━━━━━━━━━━━━━━━━━━
-⚡ "Elegance in code, royalty in design."
-`;
-
-    api.sendMessage(msg, threadID);
-
-  } catch (err) {
-    api.sendMessage(`❌ Error in help command: ${err.message}`, threadID);
-  }
+  },
 };
+
+function roleText(role) {
+  switch (role) {
+    case 0: return "0 (Everyone)";
+    case 1: return "1 (Group Admin)";
+    case 2: return "2 (Bot Admin)";
+    default: return "Unknown";
+  }
+}
