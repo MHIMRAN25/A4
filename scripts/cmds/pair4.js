@@ -56,14 +56,14 @@ module.exports = {
    var name2 = await usersData.getName(id2);
 
    let getAvtmot = (
-     await axios.get( `https://graph.facebook.com/${id1}/picture?width=322&height=337&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+     await axios.get( `https://graph.facebook.com/${id1}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
      { responseType: "arraybuffer" }
      )
    ).data;
    fs.writeFileSync(pathAvt1, Buffer.from(getAvtmot, "utf-8"));
 
    let getAvthai = (
-     await axios.get( `https://graph.facebook.com/${id2}/picture?width=528&height=256&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+     await axios.get( `https://graph.facebook.com/${id2}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
      { responseType: "arraybuffer" }
      )
    ).data;
