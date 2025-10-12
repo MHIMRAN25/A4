@@ -1,91 +1,71 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
-
-// তোমার Imgur Client ID লাগবে
-const IMGUR_CLIENT_ID = "YOUR_IMGUR_CLIENT_ID"; 
-
-// Rate limit handling
-let isProcessing = false;
+const FormData = require("form-data");
 
 module.exports = {
   config: {
-    name: "upscale",
-    version: "10.0",
+    name: "8k",
+    version: "1.0",
     role: 0,
     author: "Imran",
-    longDescription: "Messenger-ready 100% working Upscale bot using public hosting",
+    countDown: 5,
+    longDescription: "Upscale a replied image to 8K using public hosting + 8K API",
     category: "image",
+    guide: {
+      en: "{pn} reply to an image to upscale it to 8K."
+    }
   },
 
   onStart: async function({ message, event }) {
+    // Check if image is replied
     if (!event.messageReply?.attachments?.[0] || event.messageReply.attachments[0].type !== "photo") {
-      return message.reply("⚠ Please reply to an image you want to upscale.");
+      return message.reply("⚠ Please reply to an image to upscale it.");
     }
 
-    if (isProcessing) return message.reply("⏳ Please wait, another image is being processed.");
-
-    isProcessing = true;
-
     const originalUrl = event.messageReply.attachments[0].url;
-    const tempFile = path.join(__dirname, `temp_${Date.now()}.jpg`);
-    fs.mkdirSync(path.dirname(tempFile), { recursive: true });
 
-    const processingMsg = await message.reply("🔄 Downloading and preparing your image...");
+    // 1️⃣ Download image temporarily
+    const tempFilePath = path.join(__dirname, `temp_${Date.now()}.jpg`);
+    const response = await axios.get(originalUrl, { responseType: "arraybuffer" });
+    fs.writeFileSync(tempFilePath, Buffer.from(response.data));
 
+    // 2️⃣ Upload to Imgur (public URL)
+    const form = new FormData();
+    form.append("image", fs.createReadStream(tempFilePath));
+    const imgurRes = await axios.post("https://api.imgur.com/3/image", form, {
+      headers: {
+        ...form.getHeaders(),
+        Authorization: "Client-ID YOUR_IMGUR_CLIENT_ID" // replace with your free Imgur Client ID
+      }
+    });
+
+    const publicUrl = imgurRes.data.data.link;
+    fs.unlinkSync(tempFilePath); // delete temporary file
+
+    await message.reply("🔄 Image uploaded to public URL. Now upscaling to 8K...");
+
+    // 3️⃣ Call 8K upscale API
     try {
-      // Step 1: Download the image locally
-      const imgResp = await axios.get(originalUrl, { responseType: "arraybuffer" });
-      fs.writeFileSync(tempFile, Buffer.from(imgResp.data));
-
-      // Step 2: Upload to Imgur (public hosting)
-      const imgurResp = await axios.post(
-        "https://api.imgur.com/3/image",
-        { image: fs.readFileSync(tempFile, { encoding: "base64" }), type: "base64" },
-        { headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` } }
-      );
-
-      const publicUrl = imgurResp.data.data.link;
-      console.log("Public URL for Upscale:", publicUrl);
-
-      // Step 3: Delay for rate-limit safety
-      await new Promise(r => setTimeout(r, 1500)); // 1.5 seconds delay
-
-      // Step 4: Call Upscale.media API
-      const upscaleResp = await axios.post(
+      const upscaleRes = await axios.post(
         "https://api.upscale.media/api/v1/upscale",
-        { image_url: publicUrl, scale: "auto", quality: "high" },
-        { responseType: "arraybuffer", headers: { "Content-Type": "application/json" }, timeout: 60000 }
+        { image_url: publicUrl, scale: "auto", quality: "8k" },
+        { responseType: "arraybuffer", headers: { "Content-Type": "application/json" } }
       );
 
-      const finalFile = path.join(__dirname, `upscale_${Date.now()}.jpg`);
-      fs.writeFileSync(finalFile, Buffer.from(upscaleResp.data));
+      // 4️⃣ Send result to Messenger
+      const resultPath = path.join(__dirname, `upscaled_${Date.now()}.jpg`);
+      fs.writeFileSync(resultPath, Buffer.from(upscaleRes.data));
 
-      // Step 5: Upload final upscaled image to Imgur (public URL)
-      const finalImgur = await axios.post(
-        "https://api.imgur.com/3/image",
-        { image: fs.readFileSync(finalFile, { encoding: "base64" }), type: "base64" },
-        { headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` } }
-      );
-
-      const finalPublicUrl = finalImgur.data.data.link;
-
-      // Step 6: Send public URL to Messenger
       await message.reply({
-        body: `✅ Your image has been successfully upscaled! View it here:\n${finalPublicUrl}`
+        body: "✅ Here is your 8K upscaled image!",
+        attachment: fs.createReadStream(resultPath)
       });
 
-      // Cleanup temp files
-      fs.unlinkSync(tempFile);
-      fs.unlinkSync(finalFile);
-      message.unsend(processingMsg.messageID);
-
-    } catch (error) {
-      console.error("Upscale full pipeline error:", error.response?.data || error.message || error);
-      message.reply("❌ Failed to upscale the image. Possibly rate limit or network issue.");
-      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-    } finally {
-      isProcessing = false;
+      fs.unlinkSync(resultPath); // cleanup
+    } catch (err) {
+      console.error("8K upscale error:", err.response?.data || err.message || err);
+      message.reply("❌ Failed to upscale to 8K. Try again later.");
     }
   }
 };
