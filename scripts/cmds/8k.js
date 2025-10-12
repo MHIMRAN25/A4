@@ -5,86 +5,67 @@ const path = require("path");
 module.exports = {
   config: {
     name: "8k",
-    aliases: ["superhd", "cinematic"],
-    version: "8.0-Pro",
-    author: "MH-TEAM x GPT-5",
-    countDown: 5,
+    version: "2.0",
     role: 0,
-    shortDescription: "ছবিকে 8K Cinematic মানে রূপান্তর করে 🎬",
-    longDescription: "ছবিকে AI দিয়ে 8K মানে উন্নত করে (রঙ, আলো, contrast, face detail) — Dual AI Engine সহ।",
+    author: "Imran",
+    countDown: 5,
+    longDescription: "Upscale images up to 8K resolution using Upscale.media API (Free & No Key).",
     category: "image",
     guide: {
-      en: "{pn} [reply to image]",
-    },
-  },
-
-  onStart: async function ({ api, event }) {
-    const { messageReply, threadID, messageID } = event;
-
-    if (!messageReply || !messageReply.attachments || messageReply.attachments.length === 0)
-      return api.sendMessage("🎞️ অনুগ্রহ করে কোনো ছবিতে রিপ্লাই দাও এবং লিখো: .8k", threadID, messageID);
-
-    const attachment = messageReply.attachments[0];
-    if (attachment.type !== "photo")
-      return api.sendMessage("❌ শুধু ছবিতে রিপ্লাই দাও!", threadID, messageID);
-
-    const imageURL = attachment.url;
-    const outputPath = path.join(__dirname, `/cache/8k_${Date.now()}.jpg`);
-
-    api.sendMessage("🎬 ছবিটি 8K মানে রূপান্তর হচ্ছে, অপেক্ষা করো... ⚡", threadID, messageID);
-
-    try {
-      let resultBuffer;
-
-      // 🧠 Step 1: Hugging Face Super-Resolution Model
-      try {
-        const response1 = await axios({
-          method: "post",
-          url: "https://api-inference.huggingface.co/models/MCG-NKU/Real-ESRGAN",
-          headers: { "Content-Type": "application/json" },
-          data: { image_url: imageURL },
-          responseType: "arraybuffer",
-          timeout: 30000,
-        });
-        resultBuffer = Buffer.from(response1.data);
-        console.log("✅ Used HuggingFace 8K AI Engine");
-      } catch (err) {
-        console.warn("⚠️ HuggingFace failed, trying fallback...");
-        // 🧠 Step 2: DeepAI + Light Enhancement (Cinematic)
-        const response2 = await axios({
-          method: "post",
-          url: "https://api.deepai.org/api/torch-srgan",
-          headers: { "api-key": "quickstart-QUdJIGlzIGNvbWluZy4uLi4uCg==" },
-          data: { image: imageURL },
-          timeout: 30000,
-        });
-        const img = await axios.get(response2.data.output_url, { responseType: "arraybuffer" });
-        resultBuffer = Buffer.from(img.data);
-        console.log("✅ Used DeepAI fallback");
-      }
-
-      // 🎨 Step 3: AI Tone Enhancement (Extra cinematic boost)
-      const enhanced = await axios({
-        method: "post",
-        url: "https://api.deepai.org/api/colorizer",
-        headers: { "api-key": "quickstart-QUdJIGlzIGNvbWluZy4uLi4uCg==" },
-        data: { image: `data:image/jpeg;base64,${resultBuffer.toString("base64")}` },
-      });
-
-      const finalImg = await axios.get(enhanced.data.output_url, { responseType: "arraybuffer" });
-      fs.writeFileSync(outputPath, Buffer.from(finalImg.data));
-
-      api.sendMessage(
-        {
-          body: "🎞️ এখানে তোমার 8K Cinematic ছবি — Ultra Detail Enhanced ✨",
-          attachment: fs.createReadStream(outputPath),
-        },
-        threadID,
-        () => fs.unlinkSync(outputPath)
-      );
-    } catch (error) {
-      console.error("🚫 8K Upscale Error:", error.message);
-      api.sendMessage("❌ ছবিটা 8K তে রূপান্তর করা যায়নি! পরে আবার চেষ্টা করো।", threadID, messageID);
+      en: "{pn} reply to an image to upscale it (optional: {pn} [low|medium|high])."
     }
   },
+
+  onStart: async function ({ message, event, args }) {
+    // Ensure an image is replied to
+    if (
+      !event.messageReply ||
+      !event.messageReply.attachments ||
+      !event.messageReply.attachments[0] ||
+      event.messageReply.attachments[0].type !== "photo"
+    ) {
+      return message.reply("⚠ Please reply to an image you want to upscale to 8K.");
+    }
+
+    // Get the original image URL
+    const originalUrl = event.messageReply.attachments[0].url;
+
+    // Optional quality argument
+    const quality = args[0] && ["low", "medium", "high"].includes(args[0].toLowerCase())
+      ? args[0].toLowerCase()
+      : "high";
+
+    const apiUrl = "https://api.upscale.media/api/v1/upscale";
+    const filePath = path.join(__dirname, `upscale8k_${Date.now()}.jpg`);
+
+    // Send initial reply
+    message.reply(`🔄 Upscaling your image to 8K (${quality} quality)... Please wait.`, async (err, info) => {
+      try {
+        // Call Upscale.media API
+        const response = await axios.post(
+          apiUrl,
+          { image_url: originalUrl, scale: "auto", quality },
+          { responseType: "arraybuffer" }
+        );
+
+        // Save enhanced image
+        fs.writeFileSync(filePath, Buffer.from(response.data));
+
+        // Send result
+        await message.reply({
+          body: `✅ Your image has been successfully enhanced to 8K (${quality} quality)!`,
+          attachment: fs.createReadStream(filePath)
+        });
+
+        // Delete temp file
+        fs.unlinkSync(filePath);
+
+        // Unsend "Processing..." message
+        message.unsend(info.messageID);
+      } catch (error) {
+        console.error("8k.onStart error:", error?.response?.data || error.message);
+        message.reply("❌ Failed to upscale the image. Please try again later.");
+      }
+    });
+  }
 };
