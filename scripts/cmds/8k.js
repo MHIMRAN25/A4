@@ -4,68 +4,77 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "8k",
-    version: "2.0",
+    name: "upscale",
+    version: "4.0",
     role: 0,
     author: "Imran",
     countDown: 5,
-    longDescription: "Upscale images up to 8K resolution using Upscale.media API (Free & No Key).",
+    longDescription: "Upscale a replied image to low, medium, high, or 8K quality. Select quality with buttons.",
     category: "image",
     guide: {
-      en: "{pn} reply to an image to upscale it (optional: {pn} [low|medium|high])."
+      en: "{pn} reply to an image to upscale it interactively."
     }
   },
 
-  onStart: async function ({ message, event, args }) {
-    // Ensure an image is replied to
-    if (
-      !event.messageReply ||
-      !event.messageReply.attachments ||
-      !event.messageReply.attachments[0] ||
-      event.messageReply.attachments[0].type !== "photo"
-    ) {
-      return message.reply("⚠ Please reply to an image you want to upscale to 8K.");
+  onStart: async function({ message, event }) {
+    // Check if a replied message contains a photo
+    if (!event.messageReply?.attachments?.[0] || event.messageReply.attachments[0].type !== "photo") {
+      return message.reply("⚠ Please reply to an image you want to upscale.");
     }
 
-    // Get the original image URL
     const originalUrl = event.messageReply.attachments[0].url;
 
-    // Optional quality argument
-    const quality = args[0] && ["low", "medium", "high"].includes(args[0].toLowerCase())
-      ? args[0].toLowerCase()
-      : "high";
+    // Send buttons to choose quality
+    await message.reply({
+      body: "📌 Choose the quality to upscale your image:",
+      buttons: [
+        { type: "reply", body: "Low", id: "quality_low" },
+        { type: "reply", body: "Medium", id: "quality_medium" },
+        { type: "reply", body: "High", id: "quality_high" },
+        { type: "reply", body: "8K", id: "quality_8k" }
+      ]
+    });
 
-    const apiUrl = "https://api.upscale.media/api/v1/upscale";
-    const filePath = path.join(__dirname, `upscale8k_${Date.now()}.jpg`);
+    // Button click handler
+    global.handleButtonClick = async function(buttonId, userMessage) {
+      const qualityMap = {
+        quality_low: "low",
+        quality_medium: "medium",
+        quality_high: "high",
+        quality_8k: "8k"
+      };
 
-    // Send initial reply
-    message.reply(`🔄 Upscaling your image to 8K (${quality} quality)... Please wait.`, async (err, info) => {
+      const quality = qualityMap[buttonId] || "high";
+
+      const filePath = path.join(__dirname, "temp", `upscale_${Date.now()}.jpg`);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+      const processingMsg = await message.reply(`🔄 Upscaling your image to ${quality.toUpperCase()} quality... Please wait.`);
+
       try {
         // Call Upscale.media API
         const response = await axios.post(
-          apiUrl,
+          "https://api.upscale.media/api/v1/upscale",
           { image_url: originalUrl, scale: "auto", quality },
-          { responseType: "arraybuffer" }
+          { responseType: "arraybuffer", headers: { "Content-Type": "application/json" } }
         );
 
-        // Save enhanced image
+        // Save the upscaled image
         fs.writeFileSync(filePath, Buffer.from(response.data));
 
-        // Send result
+        // Send the result
         await message.reply({
-          body: `✅ Your image has been successfully enhanced to 8K (${quality} quality)!`,
+          body: `✅ Your image has been successfully upscaled to ${quality.toUpperCase()} quality!`,
           attachment: fs.createReadStream(filePath)
         });
 
-        // Delete temp file
         fs.unlinkSync(filePath);
+        message.unsend(processingMsg.messageID);
 
-        // Unsend "Processing..." message
-        message.unsend(info.messageID);
       } catch (error) {
-        console.error("8k.onStart error:", error?.response?.data || error.message);
+        console.error("Upscale error:", error.response?.data || error.message || error);
         message.reply("❌ Failed to upscale the image. Please try again later.");
       }
-    });
+    };
   }
 };
