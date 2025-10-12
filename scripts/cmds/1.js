@@ -1,6 +1,6 @@
 module.exports = {
   config: {
-    name: "file",
+    name: "file2",
     aliases: ["file", "f"],
     version: "1.2",
     author: "Imran",
