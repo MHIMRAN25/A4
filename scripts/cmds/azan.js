@@ -4,7 +4,7 @@ const axios = require("axios");
 const adhanStatusFile = __dirname + "/adhanStatus.json";
 
 module.exports.config = {
-  name: "autoazan",
+  name: "azan",
   version: "9.0.0",
   author: "Imran x GPT-5",
   role: 0,
@@ -153,7 +153,7 @@ module.exports.onLoad = async ({ api }) => {
 // 🧑‍💼 অ্যাডমিন অন/অফ কন্ট্রোল
 module.exports.onStart = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
-  const adminList = global.config.ADMINBOT || [];
+  const adminList = config.ADMINBOT || [];
 
   if (!adminList.includes(senderID)) {
     return api.sendMessage("দুঃখিত ভাই, আপনি অ্যাডমিন না 😅", threadID, messageID);
