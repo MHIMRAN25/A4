@@ -5,7 +5,7 @@ const adhanStatusFile = __dirname + "/adhanStatus.json";
 
 module.exports.config = {
   name: "azan",
-  version: "9.0.0",
+  version: "9.0.1",
   author: "Imran x GPT-5",
   role: 0,
   description: "Auto Azan (Fixed time) + Live API timings + .azan command + daily schedule",
@@ -110,11 +110,11 @@ module.exports.onLoad = async ({ api }) => {
               const video = await getAttachment(p.video);
               api.sendMessage({ body: `🕌 এখন ${p.name} নামাজের সময়!`, attachment: video }, thread);
 
-              // ১৫ সেকেন্ড পরে দোয়া
+              // ৩০ সেকেন্ড পরে দোয়া
               setTimeout(async () => {
                 const dua = await getAttachment(duaAudio);
                 api.sendMessage({ body: duaText, attachment: dua }, thread);
-              }, 15000);
+              }, 30000);
 
             } catch (e) {
               console.error("আজান পাঠানোর সময় সমস্যা:", e);
@@ -136,7 +136,7 @@ module.exports.onLoad = async ({ api }) => {
             setTimeout(async () => {
               const dua = await getAttachment(duaAudio);
               api.sendMessage({ body: duaText, attachment: dua }, thread);
-            }, 15000);
+            }, 30000);
           } catch (e) {
             console.error("জুমা পাঠানোর সময় সমস্যা:", e);
           }
@@ -150,14 +150,9 @@ module.exports.onLoad = async ({ api }) => {
   checkAdhanTime();
 };
 
-// 🧑‍💼 অ্যাডমিন অন/অফ কন্ট্রোল
+// 🧑‍💼 অ্যাডমিন চেক সরানো
 module.exports.onStart = async ({ api, event, args }) => {
-  const { threadID, messageID, senderID } = event;
-  const adminList = config.ADMINBOT || [];
-
-  if (!adminList.includes(senderID)) {
-    return api.sendMessage("দুঃখিত ভাই, আপনি অ্যাডমিন না 😅", threadID, messageID);
-  }
+  const { threadID, messageID } = event;
 
   const action = args[0]?.toLowerCase();
   if (!action || !["on", "off"].includes(action))
@@ -224,4 +219,4 @@ async function sendDailySchedule(api) {
   for (const thread of allThreads) {
     api.sendMessage(message, thread);
   }
-}
+     }
