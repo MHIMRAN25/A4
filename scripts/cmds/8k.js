@@ -5,76 +5,51 @@ const path = require("path");
 module.exports = {
   config: {
     name: "upscale",
-    version: "4.0",
+    version: "2.0",
     role: 0,
     author: "Imran",
-    countDown: 5,
-    longDescription: "Upscale a replied image to low, medium, high, or 8K quality. Select quality with buttons.",
+    longDescription: "Upscale a replied image to High/8K quality without buttons. Simple and reliable.",
     category: "image",
-    guide: {
-      en: "{pn} reply to an image to upscale it interactively."
-    }
   },
 
   onStart: async function({ message, event }) {
-    // Check if a replied message contains a photo
+    // চেক করা হচ্ছে ইউজার ছবিতে রিপ্লাই করেছে কিনা
     if (!event.messageReply?.attachments?.[0] || event.messageReply.attachments[0].type !== "photo") {
-      return message.reply("⚠ Please reply to an image you want to upscale.");
+      return message.reply("⚠ অনুগ্রহ করে যে ছবিটি আপস্কেল করতে চান সেটিতে রিপ্লাই করুন।");
     }
 
     const originalUrl = event.messageReply.attachments[0].url;
+    const filePath = path.join(__dirname, `temp_upscale_${Date.now()}.jpg`);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
-    // Send buttons to choose quality
-    await message.reply({
-      body: "📌 Choose the quality to upscale your image:",
-      buttons: [
-        { type: "reply", body: "Low", id: "quality_low" },
-        { type: "reply", body: "Medium", id: "quality_medium" },
-        { type: "reply", body: "High", id: "quality_high" },
-        { type: "reply", body: "8K", id: "quality_8k" }
-      ]
-    });
+    // Processing মেসেজ দেখানো হচ্ছে
+    const processingMsg = await message.reply("🔄 আপনার ছবি High/8K মানে আপস্কেল করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...");
 
-    // Button click handler
-    global.handleButtonClick = async function(buttonId, userMessage) {
-      const qualityMap = {
-        quality_low: "low",
-        quality_medium: "medium",
-        quality_high: "high",
-        quality_8k: "8k"
-      };
+    try {
+      // Upscale.media API কল
+      const response = await axios.post(
+        "https://api.upscale.media/api/v1/upscale",
+        { image_url: originalUrl, scale: "auto", quality: "high" },
+        { responseType: "arraybuffer", headers: { "Content-Type": "application/json" }, timeout: 60000 }
+      );
 
-      const quality = qualityMap[buttonId] || "high";
+      // আপস্কেল করা ছবি সংরক্ষণ
+      fs.writeFileSync(filePath, Buffer.from(response.data));
 
-      const filePath = path.join(__dirname, "temp", `upscale_${Date.now()}.jpg`);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      // ফলাফল পাঠানো
+      await message.reply({
+        body: "✅ আপনার ছবি সফলভাবে High/8K মানে আপস্কেল করা হয়েছে!",
+        attachment: fs.createReadStream(filePath)
+      });
 
-      const processingMsg = await message.reply(`🔄 Upscaling your image to ${quality.toUpperCase()} quality... Please wait.`);
-
-      try {
-        // Call Upscale.media API
-        const response = await axios.post(
-          "https://api.upscale.media/api/v1/upscale",
-          { image_url: originalUrl, scale: "auto", quality },
-          { responseType: "arraybuffer", headers: { "Content-Type": "application/json" } }
-        );
-
-        // Save the upscaled image
-        fs.writeFileSync(filePath, Buffer.from(response.data));
-
-        // Send the result
-        await message.reply({
-          body: `✅ Your image has been successfully upscaled to ${quality.toUpperCase()} quality!`,
-          attachment: fs.createReadStream(filePath)
-        });
-
-        fs.unlinkSync(filePath);
-        message.unsend(processingMsg.messageID);
-
-      } catch (error) {
-        console.error("Upscale error:", error.response?.data || error.message || error);
-        message.reply("❌ Failed to upscale the image. Please try again later.");
-      }
-    };
+    } catch (error) {
+      console.error("Upscale error:", error.response?.data || error.message || error);
+      message.reply("❌ ছবিটি আপস্কেল করতে ব্যর্থ হয়েছে। পরে আবার চেষ্টা করুন।");
+    } finally {
+      // Temp ফাইল মুছে ফেলা
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      // Processing মেসেজ আনসেন্ড
+      message.unsend(processingMsg.messageID);
+    }
   }
 };
