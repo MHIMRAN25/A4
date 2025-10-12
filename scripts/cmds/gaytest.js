@@ -62,7 +62,7 @@ module.exports = {
     ctx.fillRect(barX, barY, filledWidth, barHeight);
 
     // Emoji accents on bar
-    const emojis = ["🌈","💖","✨","💎","😎"];
+    const emojis = ["🌈","🤢","✨","💎","😎"];
     for (let i = 0; i < Math.floor(filledWidth / 20); i++) {
       const e = emojis[Math.floor(Math.random() * emojis.length)];
       ctx.fillText(e, barX + i*20 + 10, barY + barHeight/1.5);
