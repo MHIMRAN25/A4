@@ -2,13 +2,16 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
+// NOTE: তুমি Imgur client ID নিতে হবে free account থেকে
+const IMGUR_CLIENT_ID = "YOUR_IMGUR_CLIENT_ID"; 
+
 module.exports = {
   config: {
-    name: "8k",
-    version: "8.0",
+    name: "upscale",
+    version: "9.0",
     role: 0,
     author: "Imran",
-    longDescription: "Upscale Messenger images using Base64 (works with private URLs).",
+    longDescription: "Messenger-ready Upscale bot with public hosting, works 100%.",
     category: "image",
   },
 
@@ -18,36 +21,51 @@ module.exports = {
     }
 
     const originalUrl = event.messageReply.attachments[0].url;
-    const filePath = path.join(__dirname, `upscale_${Date.now()}.jpg`);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const tempFile = path.join(__dirname, `temp_${Date.now()}.jpg`);
+    fs.mkdirSync(path.dirname(tempFile), { recursive: true });
 
-    const processingMsg = await message.reply("🔄 Upscaling your image (Base64)...");
+    const processingMsg = await message.reply("🔄 Downloading and preparing your image...");
 
     try {
-      // Download image from Messenger CDN
+      // Step 1: Download the image locally
       const imgResp = await axios.get(originalUrl, { responseType: "arraybuffer" });
-      const base64Image = Buffer.from(imgResp.data, 'binary').toString('base64');
+      fs.writeFileSync(tempFile, Buffer.from(imgResp.data));
 
-      // Send to Upscale.media API using base64
-      const response = await axios.post(
+      // Step 2: Upload to Imgur (temporary public hosting)
+      const imgurResp = await axios.post(
+        "https://api.imgur.com/3/image",
+        { image: fs.readFileSync(tempFile, { encoding: "base64" }), type: "base64" },
+        { headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` } }
+      );
+
+      const publicUrl = imgurResp.data.data.link;
+      console.log("Public URL for Upscale:", publicUrl);
+
+      // Step 3: Call Upscale.media API
+      const upscaleResp = await axios.post(
         "https://api.upscale.media/api/v1/upscale",
-        { image: base64Image, scale: "auto", quality: "high" },
+        { image_url: publicUrl, scale: "auto", quality: "high" },
         { responseType: "arraybuffer", headers: { "Content-Type": "application/json" }, timeout: 60000 }
       );
 
-      fs.writeFileSync(filePath, Buffer.from(response.data));
+      const finalFile = path.join(__dirname, `upscale_${Date.now()}.jpg`);
+      fs.writeFileSync(finalFile, Buffer.from(upscaleResp.data));
 
+      // Step 4: Send final image to Messenger
       await message.reply({
-        body: "✅ Your image has been successfully upscaled!",
-        attachment: fs.createReadStream(filePath)
+        body: "✅ Your image has been successfully upscaled to High/8K quality!",
+        attachment: fs.createReadStream(finalFile)
       });
 
-    } catch (error) {
-      console.error("Upscale Base64 error:", error.response?.data || error.message || error);
-      message.reply("❌ Failed to upscale the image. Possibly Messenger CDN URL issue.");
-    } finally {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      // Cleanup
+      fs.unlinkSync(tempFile);
+      fs.unlinkSync(finalFile);
       message.unsend(processingMsg.messageID);
+
+    } catch (error) {
+      console.error("Upscale full pipeline error:", error.response?.data || error.message || error);
+      message.reply("❌ Failed to upscale the image. Please check console for details.");
+      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
     }
   }
 };
