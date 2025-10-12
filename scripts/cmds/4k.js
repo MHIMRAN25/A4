@@ -5,50 +5,52 @@ const path = require("path");
 module.exports = {
   config: {
     name: "4k",
-    aliases: ["enhance", "hd"],
-    version: "1.0",
-    author: "Imran | GPT-5",
-    countDown: 10,
+    version: "2.0",
     role: 0,
-    shortDescription: "Enhance image to 4K quality",
-    longDescription: "Enhance a low-quality image into 4K using DeepAI API",
+    author: "Aryan Chauhan",
+    countDown: 5,
+    longDescription: "Upscale images to 4K resolution using iHancer AI.",
     category: "image",
     guide: {
-      en: "{pn} (reply to an image)"
+      en: "{pn} reply to an image to upscale it (default: type=2, level=low)."
     }
   },
 
-  onStart: async function ({ message, event }) {
-    if (!event.messageReply || !event.messageReply.attachments || event.messageReply.attachments.length === 0) {
-      return message.reply("⚠️ Please reply to an image you want to enhance to 4K.");
+  onStart: async function ({ message, event, args }) {
+    if (
+      !event.messageReply ||
+      !event.messageReply.attachments ||
+      !event.messageReply.attachments[0] ||
+      event.messageReply.attachments[0].type !== "photo"
+    ) {
+      return message.reply("⚠ Please reply to an image to upscale it.");
     }
 
-    const attachment = event.messageReply.attachments[0];
-    if (!attachment.url) {
-      return message.reply("❌ Could not find image URL. Please try again.");
-    }
+    const originalUrl = event.messageReply.attachments[0].url;
+    const type = args[0] && !isNaN(args[0]) ? args[0] : 2; // default method 2
+    const level = args[1] && ["low", "medium", "high"].includes(args[1].toLowerCase()) ? args[1].toLowerCase() : "low";
 
-    const apiKey = "9231304c-17b4-4fd9-aae1-ab8604bea33f"; // DeepAI API key
-    const imageUrl = attachment.url;
-    const outputPath = path.join(__dirname, "4k_result.jpg");
+    const apiUrl = `https://arychauhann.onrender.com/api/ihancer?url=${encodeURIComponent(originalUrl)}&type=${type}&level=${level}`;
 
-    message.reply("🔄 Enhancing your image to 4K... please wait.");
+    message.reply("🔄 Processing your image with iHancer AI... Please wait.", async (err, info) => {
+      try {
+        const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
 
-    try {
-      const response = await axios.post(
-        "https://api.deepai.org/api/torch-srgan",
-        { image: imageUrl },
-        { headers: { "api-key": apiKey } }
-      );
+        const filePath = path.join(__dirname, `ihancer_${Date.now()}.png`);
+        fs.writeFileSync(filePath, Buffer.from(response.data));
 
-      const imageResp = await axios.get(response.data.output_url, { responseType: "arraybuffer" });
-      fs.writeFileSync(outputPath, Buffer.from(imageResp.data, "binary"));
+        await message.reply({
+          body: `✅ Here is your enhanced image (type=${type}, level=${level})`,
+          attachment: fs.createReadStream(filePath)
+        });
 
-      await message.reply({ body: "✅ Image enhanced to 4K successfully!", attachment: fs.createReadStream(outputPath) });
-      fs.unlinkSync(outputPath);
-    } catch (error) {
-      console.error(error);
-      message.reply("❌ Failed to enhance image. Please check your API key or try again later.");
-    }
+        fs.unlinkSync(filePath);
+
+        message.unsend(info.messageID);
+      } catch (error) {
+        console.error("4k.onStart error:", error?.response?.data || error.message);
+        message.reply("❌ There was an error processing your image. Please try again later.");
+      }
+    });
   }
 };
