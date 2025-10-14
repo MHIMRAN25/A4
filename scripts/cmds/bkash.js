@@ -1,4 +1,4 @@
-// bkash_goat_final_fixed.js
+// bkash_goat_final_safe.js
 // Offline bKash-like command (file-based persistence, PIN hashed)
 // Styled receipts, menu, emoji, Goat Bot v2 style
 // npm install bcrypt
@@ -67,7 +67,7 @@ function receiptBox(title, lines = [], pin = "<PIN>") {
   const lineSep = "──────────────────────────";
   const filteredLines = lines.filter(l => l && l.trim().length > 0);
   const content = [title, lineSep, ...filteredLines, lineSep, `Back to menu: .bkash ${pin}`].join("\n");
-  return content || "‎"; // Zero-width space to avoid blank error
+  return content.trim() || "‎"; // Zero-width space fallback
 }
 
 // ---------------- Command ----------------
@@ -129,10 +129,9 @@ module.exports={
 
     const option = tokens[2]?.toLowerCase()||"";
 
-    // --- Switch Cases ---
-    switch(option){
+    try {
       // Send Money
-      case "1": case "send":{
+      if(option==="1" || option==="send"){
         const receiver=tokens[3]; const amount=Number(tokens[4]);
         if(!receiver) return message.reply("❌ Specify receiver UID. Example: .bkash <PIN> 1 <UID> <amt>");
         if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount.");
@@ -160,7 +159,7 @@ module.exports={
       }
 
       // Cash Out
-      case "2": case "cash":{
+      else if(option==="2" || option==="cash"){
         const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
         const fee=computeFee(amount); const total=amount+fee;
         if(userObj.balance<total) return message.reply("❌ Insufficient balance (fee included)");
@@ -177,7 +176,7 @@ module.exports={
       }
 
       // Mobile Recharge
-      case "3": case "recharge":{
+      else if(option==="3" || option==="recharge"){
         const mobile=tokens[3]; const amount=Number(tokens[4]);
         if(!mobile) return message.reply("❌ Provide mobile number");
         if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
@@ -197,7 +196,7 @@ module.exports={
       }
 
       // Balance
-      case "4": case "balance":{
+      else if(option==="4" || option==="balance"){
         return message.reply(receiptBox("💰 Your Balance",[
           `💵 Cash : ${fmt(db[uid].balance)}`,
           `🏦 Bank : ${fmt(db[uid].bank)}`
@@ -205,7 +204,7 @@ module.exports={
       }
 
       // Bank Deposit
-      case "5": case "deposit":{
+      else if(option==="5" || option==="deposit"){
         const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
         if(userObj.balance<amount) return message.reply("❌ Insufficient cash to deposit");
         db[uid].balance-=amount; db[uid].bank+=amount; writeAll(db);
@@ -220,7 +219,7 @@ module.exports={
       }
 
       // Bank Withdraw
-      case "6": case "withdraw":{
+      else if(option==="6" || option==="withdraw"){
         const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
         if(userObj.bank<amount) return message.reply("❌ Insufficient bank balance");
         db[uid].bank-=amount; db[uid].balance+=amount; writeAll(db);
@@ -235,18 +234,21 @@ module.exports={
       }
 
       // Reset PIN
-      case "7": case "reset":{
+      else if(option==="7" || option==="reset"){
         const newPin=tokens[3]; if(!newPin||!/^\d{4}$/.test(newPin)) return message.reply("❌ New PIN must be 4 digits");
         await setPIN(uid,newPin); return message.reply("✅ PIN reset successful. Use new PIN.");
       }
 
       // History
-      case "history":{
+      else if(option==="history"){
         const hist=(db[uid]&&db[uid].history)?db[uid].history.slice(0,10).join("\n"):"No history";
         return message.reply(receiptBox("📜 Last Transactions",[hist], pin) || "‎");
       }
 
-      default: return message.reply("❌ Invalid option. Use: 1-send,2-cash,3-recharge,4-balance,5-deposit,6-withdraw,7-reset or history");
+      else return message.reply("❌ Invalid option. Use: 1-send,2-cash,3-recharge,4-balance,5-deposit,6-withdraw,7-reset or history");
+    } catch(e){
+      console.error(e);
+      return message.reply("❌ An error occurred. Please try again.");
     }
   }
 };
