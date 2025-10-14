@@ -1,343 +1,218 @@
-const moment = require("moment-timezone");
+// bkashFullBot.js
+const { MongoClient } = require("mongodb");
+const bcrypt = require("bcrypt");
 
-// Simulated in-memory storage (replace with DB in production)
-const lastTransactions = {};
-const userPins = {}; // { userID: "1234" }
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
+const MONGO_DB = process.env.MONGO_DB || "bkash_sim";
+const OWNER_UID = process.env.OWNER_UID || "owner_123";
 
-module.exports = {
-  config: {
-    name: "bkashfun",
-    aliases: ["bkash"],
-    version: "2.2",
-    author: "Imran x GPT",
-    countDown: 5,
-    role: 0,
-    shortDescription: "Interactive Fake bKash Fun Bot with PIN & reset",
-    longDescription: "Simulate Send Money, Cash Out, Mobile Recharge with PIN verification, retries, agent/operator randomness, last transaction and PIN reset.",
-    category: "fun",
-  },
+const FEE_PERCENT = 1.5;
+const MIN_FEE = 2;
+const MAX_FEE = 100;
 
-  onStart: async function({ event, message, usersData }) {
-    try {
-      const userID = event.senderID;
-      const userName = await usersData.getName(userID) || "User";
+function computeFee(amount) {
+  const raw = (amount * FEE_PERCENT)/100;
+  const ceilRaw = Math.ceil(raw);
+  return Math.max(MIN_FEE, Math.min(MAX_FEE, ceilRaw));
+}
 
-      // Ensure user has a PIN (default 1234)
-      ensureUserPin(userID);
+let client;
+async function getDb() {
+  if (!client) {
+    client = new MongoClient(MONGO_URI, { useNewUrlParser:true, useUnifiedTopology:true });
+    await client.connect();
+  }
+  return client.db(MONGO_DB);
+}
 
-      // Show menu
-      await message.reply(
-`Select an option:
-1) Send Money
-2) Cash Out
-3) Mobile Recharge
-4) Last Transaction
-5) PIN Reset
+const userSessions = {}; // userID => { step, data }
 
-Reply with 1, 2, 3, 4, or 5.`
-      );
+function nowStr() {
+  const now = new Date();
+  return now.toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
 
-      const optionReply = await waitForReply(userID);
-      const opt = (optionReply || "").trim().toLowerCase();
+function fmt(n){return `${n} BDT`;}
+function makeTxnId(){return Math.random().toString(36).substring(2,10).toUpperCase();}
 
-      if (["1","send"].includes(opt)) return await handleSendMoneyFlow(userID, userName, message);
-      if (["2","cashout"].includes(opt)) return await handleCashOutFlow(userID, userName, message);
-      if (["3","recharge"].includes(opt)) return await handleRechargeFlow(userID, userName, message);
-      if (["4","last"].includes(opt)) {
-        if (lastTransactions[userID]) return message.reply(lastTransactions[userID]);
-        else return message.reply("No previous transaction found.");
+// --- Helpers ---
+async function getUser(db, uid){ return db.collection("users").findOne({_id:uid}); }
+async function createUserIfNotExists(db, uid, name="User"){
+  const users = db.collection("users");
+  const exists = await users.findOne({_id:uid});
+  if(!exists){ await users.insertOne({_id:uid,name,pinHash:null,balance:0}); return {_id:uid,name,pinHash:null,balance:0}; }
+  return exists;
+}
+async function setPIN(db, uid, pin){ const hash = await bcrypt.hash(pin,10); await db.collection("users").updateOne({_id:uid},{ $set:{pinHash:hash} }); }
+async function verifyPIN(db, uid, pin){ const user = await getUser(db, uid); if(!user||!user.pinHash) return false; return bcrypt.compare(pin,pinHash); }
+
+// --- Menu ---
+function getMenu(){ return "💸 bKash Menu\n1️⃣ Send Money\n2️⃣ Cash Out\n3️⃣ Mobile Recharge\n4️⃣ Reset PIN\n5️⃣ Bank Deposit\n6️⃣ Bank Withdraw\n7️⃣ Balance\nReply with number or use buttons."; }
+
+// --- Transaction ---
+async function performTransaction(db,senderID,receiverID,amount,fee){
+  await db.collection("users").updateOne({_id:senderID},{ $inc:{balance:-amount-fee} });
+  await db.collection("users").updateOne({_id:receiverID},{ $inc:{balance:amount} });
+  await db.collection("users").updateOne({_id:OWNER_UID},{ $inc:{balance:fee} });
+}
+
+// --- Main Run ---
+module.exports.run = async function({message,args}) {
+  const db = await getDb();
+  const uid = message.senderID;
+  const name = message.senderName || "User";
+
+  await createUserIfNotExists(db,uid,name);
+  await createUserIfNotExists(db,OWNER_UID,"Bot Owner");
+
+  let session = userSessions[uid] || {step:"checkPIN",data:{}};
+  const user = await getUser(db,uid);
+
+  // PIN setup
+  if(!user.pinHash){
+    if(!args[0]) return message.reply(`${name}, set 4-digit PIN: .bkash 1234`);
+    const pin = args[0];
+    if(!/^\d{4}$/.test(pin)) return message.reply("❌ PIN must be 4 digits.");
+    await setPIN(db,uid,pin);
+    userSessions[uid] = {step:null,data:{}};
+    return message.reply("✅ PIN set! Use .bkash YOUR_PIN to open menu.");
+  }
+
+  const text = args[0] || message.text.trim();
+
+  switch(session.step){
+    case "checkPIN":
+      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN!");
+      session.step="menu";
+      userSessions[uid]=session;
+      return message.reply(getMenu());
+
+    case "menu":
+      switch(text){
+        case "1": session.step="send_uid"; return message.reply("Enter receiver UID:");
+        case "2": session.step="cash_amount"; return message.reply("Enter Cash Out amount:");
+        case "3": session.step="recharge_mobile"; return message.reply("Enter mobile number:");
+        case "4": session.step="reset_pin"; return message.reply("Enter new 4-digit PIN:");
+        case "5": session.step="bank_deposit"; return message.reply("Enter deposit amount:");
+        case "6": session.step="bank_withdraw"; return message.reply("Enter withdraw amount:");
+        case "7": const fresh = await getUser(db,uid); session.step="menu"; userSessions[uid]=session; return message.reply(`💰 Balance: ${fmt(fresh.balance)}`);
+        default: return message.reply("❌ Invalid option. Reply 1-7.");
       }
-      if (["5","pin","pin reset","reset"].includes(opt) || opt === "5") return await handlePinResetFlow(userID, message);
 
-      return message.reply("Invalid option selected.");
-    } catch (err) {
-      console.error(err);
-      return message.reply("An error occurred. Please try again later.");
-    }
+    // --- Send Money ---
+    case "send_uid":
+      session.data.receiverUID=text;
+      session.step="send_amount";
+      userSessions[uid]=session;
+      return message.reply("Enter amount:");
+
+    case "send_amount":
+      const amt1=Number(text);
+      if(isNaN(amt1)||amt1<=0) return message.reply("❌ Invalid amount.");
+      session.data.amount=amt1;
+      session.step="send_pin";
+      userSessions[uid]=session;
+      return message.reply("Enter PIN to confirm:");
+
+    case "send_pin":
+      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+      const fee1=computeFee(session.data.amount);
+      if(user.balance<session.data.amount+fee1) return message.reply("❌ Insufficient balance including fee.");
+      const recv1 = await createUserIfNotExists(db,session.data.receiverUID);
+      await performTransaction(db,uid,recv1._id,session.data.amount,fee1);
+      const txn1=makeTxnId();
+      userSessions[uid]={step:"menu",data:{}};
+      return message.reply(`📱 Send Money\nSender: ${name}\nReceiver: ${recv1._id}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee1)}\nTxnID: ${txn1}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+
+    // --- Cash Out ---
+    case "cash_amount":
+      const amt2=Number(text);
+      if(isNaN(amt2)||amt2<=0) return message.reply("❌ Invalid amount.");
+      session.data.amount=amt2;
+      session.step="cash_pin";
+      userSessions[uid]=session;
+      return message.reply("Enter PIN to confirm:");
+
+    case "cash_pin":
+      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+      const fee2=computeFee(session.data.amount);
+      if(user.balance<session.data.amount+fee2) return message.reply("❌ Insufficient balance including fee.");
+      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee2);
+      const txn2=makeTxnId();
+      userSessions[uid]={step:"menu",data:{}};
+      return message.reply(`💵 Cash Out\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee2)}\nTxnID: ${txn2}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+
+    // --- Mobile Recharge ---
+    case "recharge_mobile":
+      session.data.mobile=text;
+      session.step="recharge_amount";
+      userSessions[uid]=session;
+      return message.reply("Enter recharge amount:");
+
+    case "recharge_amount":
+      const amt3=Number(text);
+      if(isNaN(amt3)||amt3<=0) return message.reply("❌ Invalid amount.");
+      session.data.amount=amt3;
+      session.step="recharge_pin";
+      userSessions[uid]=session;
+      return message.reply("Enter PIN to confirm:");
+
+    case "recharge_pin":
+      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+      const fee3=computeFee(session.data.amount);
+      if(user.balance<session.data.amount+fee3) return message.reply("❌ Insufficient balance including fee.");
+      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee3);
+      const txn3=makeTxnId();
+      userSessions[uid]={step:"menu",data:{}};
+      return message.reply(`📱 Mobile Recharge\nMobile: ${session.data.mobile}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee3)}\nTxnID: ${txn3}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+
+    // --- Bank Deposit ---
+    case "bank_deposit":
+      const amt4=Number(text);
+      if(isNaN(amt4)||amt4<=0) return message.reply("❌ Invalid amount.");
+      session.data.amount=amt4;
+      session.step="bank_deposit_pin";
+      userSessions[uid]=session;
+      return message.reply("Enter PIN to confirm deposit:");
+
+    case "bank_deposit_pin":
+      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+      const fee4=computeFee(session.data.amount);
+      if(user.balance<session.data.amount+fee4) return message.reply("❌ Insufficient balance including fee.");
+      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee4);
+      const txn4=makeTxnId();
+      userSessions[uid]={step:"menu",data:{}};
+      return message.reply(`🏦 Bank Deposit\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee4)}\nTxnID: ${txn4}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+
+    // --- Bank Withdraw ---
+    case "bank_withdraw":
+      const amt5=Number(text);
+      if(isNaN(amt5)||amt5<=0) return message.reply("❌ Invalid amount.");
+      session.data.amount=amt5;
+      session.step="bank_withdraw_pin";
+      userSessions[uid]=session;
+      return message.reply("Enter PIN to confirm withdraw:");
+
+    case "bank_withdraw_pin":
+      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+      const fee5=computeFee(session.data.amount);
+      if(user.balance<session.data.amount+fee5) return message.reply("❌ Insufficient balance including fee.");
+      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee5);
+      const txn5=makeTxnId();
+      userSessions[uid]={step:"menu",data:{}};
+      return message.reply(`🏦 Bank Withdraw\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee5)}\nTxnID: ${txn5}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+
+    // --- Reset PIN ---
+    case "reset_pin":
+      if(!/^\d{4}$/.test(text)) return message.reply("❌ PIN must be 4 digits.");
+      await setPIN(db,uid,text);
+      session.step="menu";
+      userSessions[uid]=session;
+      return message.reply("✅ PIN reset successful.\n"+getMenu());
+
+    default:
+      session.step="checkPIN";
+      userSessions[uid]=session;
+      return message.reply("❌ Session error. Enter PIN to start.");
   }
 };
-
-// ---------------------- Flows ----------------------
-
-async function handleSendMoneyFlow(userID, userName, message) {
-  await message.reply("Enter the amount (1-25,000) or type 'random':");
-  const amountReply = await waitForReply(userID);
-  let amount = parseAmountOrRandom(amountReply);
-  if (amount === null) return message.reply("Invalid amount.");
-
-  // PIN verification (3 attempts)
-  const pinOk = await verifyPin(userID, message);
-  if (!pinOk) return message.reply("PIN verification failed. Transaction cancelled.");
-
-  const time = moment().tz("Asia/Dhaka").format("D MMMM YYYY, h:mm A");
-  const receipt = buildSendMoneyReceipt(userName, amount, time);
-  lastTransactions[userID] = receipt;
-  return message.reply(`PIN Verified Successfully.\n\n${receipt}`);
-}
-
-async function handleCashOutFlow(userID, userName, message) {
-  await message.reply("Enter the amount (1-25,000) or type 'random':");
-  const amountReply = await waitForReply(userID);
-  let amount = parseAmountOrRandom(amountReply);
-  if (amount === null) return message.reply("Invalid amount.");
-
-  // PIN verification (3 attempts)
-  const pinOk = await verifyPin(userID, message);
-  if (!pinOk) return message.reply("PIN verification failed. Transaction cancelled.");
-
-  const time = moment().tz("Asia/Dhaka").format("D MMMM YYYY, h:mm A");
-  const receipt = buildCashOutReceipt(userName, amount, time);
-  lastTransactions[userID] = receipt;
-  return message.reply(`PIN Verified Successfully.\n\n${receipt}`);
-}
-
-async function handleRechargeFlow(userID, userName, message) {
-  await message.reply("Enter the recharge amount (1-25,000) or type 'random':");
-  const amountReply = await waitForReply(userID);
-  let amount = parseAmountOrRandom(amountReply);
-  if (amount === null) return message.reply("Invalid amount.");
-
-  // PIN verification (3 attempts)
-  const pinOk = await verifyPin(userID, message);
-  if (!pinOk) return message.reply("PIN verification failed. Transaction cancelled.");
-
-  const time = moment().tz("Asia/Dhaka").format("D MMMM YYYY, h:mm A");
-  const receipt = buildRechargeReceipt(userName, amount, time);
-  lastTransactions[userID] = receipt;
-  return message.reply(`PIN Verified Successfully.\n\n${receipt}`);
-}
-
-async function handlePinResetFlow(userID, message) {
-  // Step 1: Ask to verify current PIN (3 attempts)
-  await message.reply("To reset your PIN, please enter your CURRENT 4-digit PIN:");
-  let verified = false;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const pinReply = await waitForReply(userID);
-    if (!pinReply) return message.reply("No input received. PIN reset cancelled.");
-    const pin = pinReply.trim();
-    if (/^\d{4}$/.test(pin) && pin === getUserPin(userID)) {
-      verified = true;
-      break;
-    } else {
-      if (attempt < 3) await message.reply(`Incorrect PIN. You have ${3 - attempt} attempt(s) left.`);
-    }
-  }
-  if (!verified) return message.reply("PIN verification failed. PIN reset cancelled.");
-
-  // Step 2: Ask for new PIN twice
-  await message.reply("Enter your NEW 4-digit PIN:");
-  const newPinReply = await waitForReply(userID);
-  if (!newPinReply) return message.reply("No input received. PIN reset cancelled.");
-  const newPin = newPinReply.trim();
-  if (!/^\d{4}$/.test(newPin)) return message.reply("Invalid PIN format. PIN must be exactly 4 digits.");
-
-  await message.reply("Confirm your NEW 4-digit PIN:");
-  const confirmPinReply = await waitForReply(userID);
-  if (!confirmPinReply) return message.reply("No input received. PIN reset cancelled.");
-  const confirmPin = confirmPinReply.trim();
-
-  if (newPin !== confirmPin) return message.reply("PIN mismatch. PIN reset cancelled.");
-  if (newPin === getUserPin(userID)) return message.reply("New PIN is same as old PIN. Choose a different PIN.");
-
-  // Save new PIN
-  setUserPin(userID, newPin);
-  return message.reply("Your PIN has been reset successfully.");
-}
-
-// ---------------------- PIN helpers ----------------------
-
-function ensureUserPin(userID) {
-  if (!userPins[userID]) {
-    userPins[userID] = "1234"; // default PIN for new user
-  }
-}
-
-function getUserPin(userID) {
-  ensureUserPin(userID);
-  return userPins[userID];
-}
-
-function setUserPin(userID, newPin) {
-  userPins[userID] = newPin;
-}
-
-// verifyPin: interactively ask for PIN up to 3 attempts
-async function verifyPin(userID, message) {
-  await message.reply("Enter your 4-digit PIN:");
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const reply = await waitForReply(userID);
-    if (!reply) {
-      await message.reply("No input received. PIN verification cancelled.");
-      return false;
-    }
-    const pin = reply.trim();
-    if (/^\d{4}$/.test(pin) && pin === getUserPin(userID)) {
-      return true;
-    } else {
-      if (attempt < 3) await message.reply(`Incorrect PIN. You have ${3 - attempt} attempt(s) left.`);
-    }
-  }
-  return false;
-}
-
-// ---------------------- Utilities & Receipts (same as before) ----------------------
-
-function generateTxnID(len = 12) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let id = "";
-  for (let i = 0; i < len; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
-  return id;
-}
-
-function generateRefNo(len = 8) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let ref = "";
-  for (let i = 0; i < len; i++) ref += chars.charAt(Math.floor(Math.random() * chars.length));
-  return ref;
-}
-
-function generateMobileNumber() {
-  const secondDigit = Math.floor(Math.random() * 10);
-  const rest = Math.floor(Math.random() * 100000000).toString().padStart(8, "0");
-  return `01${secondDigit}${rest}`;
-}
-
-function getRandomAmountInRange(min = 1, max = 25000) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function formatWithCommas(n) {
-  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-function calculateCharge(amount) {
-  if (amount <= 10000) return 0;
-  if (amount <= 20000) return 5;
-  return 10;
-}
-
-function getRandomAgent() {
-  const agents = ["bKash Agent 01", "bKash Agent 02", "bKash Agent 03", "Trusted Agent"];
-  return agents[Math.floor(Math.random() * agents.length)];
-}
-
-function getRandomOperator() {
-  const ops = ["GP", "Robi", "Banglalink", "Airtel", "Teletalk"];
-  return ops[Math.floor(Math.random() * ops.length)];
-}
-
-// parse amount or random helper
-function parseAmountOrRandom(input) {
-  if (!input) return null;
-  const t = input.trim();
-  if (/^random$/i.test(t)) return getRandomAmountInRange(1, 25000);
-  const num = parseInt(t.replace(/,/g, ""), 10);
-  if (isNaN(num) || num < 1 || num > 25000) return null;
-  return num;
-}
-
-// Receipts
-function buildSendMoneyReceipt(userName, amount, time) {
-  const txnID = generateTxnID();
-  const refNo = generateRefNo();
-  const charge = calculateCharge(amount);
-  const total = amount + charge;
-  const recipientMobile = generateMobileNumber();
-  const paymentMethod = "bKash Wallet";
-
-  return (
-`========================
-      bKash Send Money
-========================
-
-Recipient Name : ${userName}
-Recipient Mobile : ${recipientMobile}
-
-Transaction ID : ${txnID}
-Reference No   : ${refNo}
-Payment Method : ${paymentMethod}
-
-Amount         : ${formatWithCommas(amount)} BDT
-Charge         : ${formatWithCommas(charge)} BDT
-Total          : ${formatWithCommas(total)} BDT
-
-Date & Time    : ${time}
-
-========================
-This receipt is for fun only.
-========================`
-  );
-}
-
-function buildCashOutReceipt(userName, amount, time) {
-  const txnID = generateTxnID();
-  const refNo = generateRefNo();
-  const agent = getRandomAgent();
-  const charge = calculateCharge(amount);
-  const total = amount + charge;
-
-  return (
-`========================
-        bKash Cash Out
-========================
-
-Sender Name     : ${userName}
-Agent           : ${agent}
-
-Transaction ID  : ${txnID}
-Reference No    : ${refNo}
-Payment Method  : Cash Out
-
-Amount          : ${formatWithCommas(amount)} BDT
-Charge          : ${formatWithCommas(charge)} BDT
-Total           : ${formatWithCommas(total)} BDT
-
-Date & Time     : ${time}
-
-========================
-This receipt is for fun only.
-========================`
-  );
-}
-
-function buildRechargeReceipt(userName, amount, time) {
-  const txnID = generateTxnID();
-  const refNo = generateRefNo();
-  const mobile = generateMobileNumber();
-  const operator = getRandomOperator();
-  const charge = 0;
-  const total = amount;
-
-  return (
-`========================
-      Mobile Recharge
-========================
-
-Subscriber Name : ${userName}
-Mobile Number   : ${mobile}
-Operator        : ${operator}
-
-Transaction ID  : ${txnID}
-Reference No    : ${refNo}
-Payment Method  : bKash Wallet
-
-Recharge Amount : ${formatWithCommas(amount)} BDT
-Charge          : ${formatWithCommas(charge)} BDT
-Total           : ${formatWithCommas(total)} BDT
-
-Date & Time     : ${time}
-
-========================
-This receipt is for fun only.
-========================`
-  );
-}
-
-// ---------------------- Placeholder for waiting user reply ----------------------
-// Implement this according to your bot platform: it should wait for next message from senderID and return the text.
-async function waitForReply(senderID) {
-  return new Promise((resolve) => {
-    // Example: bind listener in your framework; when message from senderID arrives call resolve(text)
-    // For now, this is a placeholder and must be implemented by you.
-  });
-        }
