@@ -2,15 +2,21 @@
 module.exports = {
   config: {
     name: "bkash",
-    category: "Economy",                
-    author: "MH",                        
+    category: "Economy",
+    author: "MH",
     countDown: 5,
     shortDescription: "bKash simulator with PIN & fees",
     longDescription: "Interactive bKash bot with Send Money, Cash Out, Mobile Recharge, Bank Deposit/Withdraw, PIN verification, fees and receipts. Quick Reply / Button support included."
   },
 
+  // ---------------- onStart ----------------
+  onStart: async function({ message, args }) {
+    // Optional: welcome or session init
+    return;
+  },
+
   // ---------------- Main Bot Logic ----------------
-  run: async function({message,args,sendButtons}) {
+  run: async function({ message, args, sendButtons }) {
     const { MongoClient } = require("mongodb");
     const bcrypt = require("bcrypt");
 
@@ -24,8 +30,7 @@ module.exports = {
 
     function computeFee(amount) {
       const raw = (amount * FEE_PERCENT)/100;
-      const ceilRaw = Math.ceil(raw);
-      return Math.max(MIN_FEE, Math.min(MAX_FEE, ceilRaw));
+      return Math.max(MIN_FEE, Math.min(MAX_FEE, Math.ceil(raw)));
     }
 
     let client;
@@ -37,11 +42,10 @@ module.exports = {
       return client.db(MONGO_DB);
     }
 
-    const userSessions = {}; 
+    const userSessions = {};
 
     function nowStr() {
-      const now = new Date();
-      return now.toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+      return new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
     }
 
     function fmt(n){return `${n} BDT`;}
@@ -85,7 +89,7 @@ module.exports = {
     let session = userSessions[uid] || {step:"checkPIN",data:{}};
     const user = await getUser(db,uid);
 
-    // PIN setup
+    // --- PIN setup if first time ---
     if(!user.pinHash){
       if(!args[0]) return message.reply(`${name}, set 4-digit PIN: .bkash 1234`);
       const pin = args[0];
