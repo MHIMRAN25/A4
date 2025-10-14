@@ -1,257 +1,245 @@
-// bkashFullBotQuick.js
-const { MongoClient } = require("mongodb");
-const bcrypt = require("bcrypt");
-
-// --- Config ---
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
-const MONGO_DB = process.env.MONGO_DB || "bkash_sim";
-const OWNER_UID = process.env.OWNER_UID || "owner_123";
-
-const FEE_PERCENT = 1.5;
-const MIN_FEE = 2;
-const MAX_FEE = 100;
-
-function computeFee(amount) {
-  const raw = (amount * FEE_PERCENT)/100;
-  const ceilRaw = Math.ceil(raw);
-  return Math.max(MIN_FEE, Math.min(MAX_FEE, ceilRaw));
-}
-
-let client;
-async function getDb() {
-  if (!client) {
-    client = new MongoClient(MONGO_URI, { useNewUrlParser:true, useUnifiedTopology:true });
-    await client.connect();
-  }
-  return client.db(MONGO_DB);
-}
-
-const userSessions = {}; // userID => { step, data }
-
-function nowStr() {
-  const now = new Date();
-  return now.toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
-}
-
-function fmt(n){return `${n} BDT`;}
-function makeTxnId(){return Math.random().toString(36).substring(2,10).toUpperCase();}
-
-// --- Helpers ---
-async function getUser(db, uid){ return db.collection("users").findOne({_id:uid}); }
-async function createUserIfNotExists(db, uid, name="User"){
-  const users = db.collection("users");
-  const exists = await users.findOne({_id:uid});
-  if(!exists){ await users.insertOne({_id:uid,name,pinHash:null,balance:0}); return {_id:uid,name,pinHash:null,balance:0}; }
-  return exists;
-}
-async function setPIN(db, uid, pin){ const hash = await bcrypt.hash(pin,10); await db.collection("users").updateOne({_id:uid},{ $set:{pinHash:hash} }); }
-async function verifyPIN(db, uid, pin){ const user = await getUser(db, uid); if(!user||!user.pinHash) return false; return bcrypt.compare(pin,user.pinHash); }
-
-// --- Menu Buttons ---
-const menuButtons = [
-  { title: "Send Money", payload: "MENU_SEND" },
-  { title: "Cash Out", payload: "MENU_CASH" },
-  { title: "Mobile Recharge", payload: "MENU_RECHARGE" },
-  { title: "Reset PIN", payload: "MENU_PIN" },
-  { title: "Bank Deposit", payload: "MENU_DEPOSIT" },
-  { title: "Bank Withdraw", payload: "MENU_WITHDRAW" },
-  { title: "Balance", payload: "MENU_BALANCE" },
-];
-
-function getMenuText(){ return "💸 bKash Menu\nSelect an option:"; }
-
-// --- Transaction ---
-async function performTransaction(db,senderID,receiverID,amount,fee){
-  await db.collection("users").updateOne({_id:senderID},{ $inc:{balance:-amount-fee} });
-  await db.collection("users").updateOne({_id:receiverID},{ $inc:{balance:amount} });
-  await db.collection("users").updateOne({_id:OWNER_UID},{ $inc:{balance:fee} });
-}
-
-// --- Main Bot Logic ---
-async function run({message,args,sendButtons}){ // sendButtons: function(title, buttons)
-  const db = await getDb();
-  const uid = message.senderID;
-  const name = message.senderName || "User";
-
-  await createUserIfNotExists(db,uid,name);
-  await createUserIfNotExists(db,OWNER_UID,"Bot Owner");
-
-  let session = userSessions[uid] || {step:"checkPIN",data:{}};
-  const user = await getUser(db,uid);
-
-  // PIN setup
-  if(!user.pinHash){
-    if(!args[0]) return message.reply(`${name}, set 4-digit PIN: .bkash 1234`);
-    const pin = args[0];
-    if(!/^\d{4}$/.test(pin)) return message.reply("❌ PIN must be 4 digits.");
-    await setPIN(db,uid,pin);
-    userSessions[uid] = {step:null,data:{}};
-    return message.reply("✅ PIN set! Use .bkash YOUR_PIN to open menu.");
-  }
-
-  const text = args[0] || message.text.trim();
-
-  switch(session.step){
-    case "checkPIN":
-      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN!");
-      session.step="menu";
-      userSessions[uid]=session;
-      return sendButtons(getMenuText(), menuButtons);
-
-    case "menu":
-      switch(text){
-        case "MENU_SEND": session.step="send_uid"; return message.reply("Enter receiver UID:");
-        case "MENU_CASH": session.step="cash_amount"; return message.reply("Enter Cash Out amount:");
-        case "MENU_RECHARGE": session.step="recharge_mobile"; return message.reply("Enter mobile number:");
-        case "MENU_PIN": session.step="reset_pin"; return message.reply("Enter new 4-digit PIN:");
-        case "MENU_DEPOSIT": session.step="bank_deposit"; return message.reply("Enter deposit amount:");
-        case "MENU_WITHDRAW": session.step="bank_withdraw"; return message.reply("Enter withdraw amount:");
-        case "MENU_BALANCE": const fresh = await getUser(db,uid); return message.reply(`💰 Balance: ${fmt(fresh.balance)}`);
-        default: return message.reply("❌ Invalid option. Use menu buttons.");
-      }
-
-    // --- Send Money ---
-    case "send_uid":
-      session.data.receiverUID=text;
-      session.step="send_amount";
-      userSessions[uid]=session;
-      return message.reply("Enter amount:");
-
-    case "send_amount":
-      const amt1=Number(text);
-      if(isNaN(amt1)||amt1<=0) return message.reply("❌ Invalid amount.");
-      session.data.amount=amt1;
-      session.step="send_pin";
-      userSessions[uid]=session;
-      return message.reply("Enter PIN to confirm:");
-
-    case "send_pin":
-      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
-      const fee1=computeFee(session.data.amount);
-      if(user.balance<session.data.amount+fee1) return message.reply("❌ Insufficient balance including fee.");
-      const recv1 = await createUserIfNotExists(db,session.data.receiverUID);
-      await performTransaction(db,uid,recv1._id,session.data.amount,fee1);
-      const txn1=makeTxnId();
-      userSessions[uid]={step:"menu",data:{}};
-      return sendButtons(
-        `📱 Send Money\nSender: ${name}\nReceiver: ${recv1._id}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee1)}\nTxnID: ${txn1}\nStatus: ✅\nDate: ${nowStr()}`,
-        menuButtons
-      );
-
-    // --- Cash Out ---
-    case "cash_amount":
-      const amt2=Number(text);
-      if(isNaN(amt2)||amt2<=0) return message.reply("❌ Invalid amount.");
-      session.data.amount=amt2;
-      session.step="cash_pin";
-      userSessions[uid]=session;
-      return message.reply("Enter PIN to confirm:");
-
-    case "cash_pin":
-      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
-      const fee2=computeFee(session.data.amount);
-      if(user.balance<session.data.amount+fee2) return message.reply("❌ Insufficient balance including fee.");
-      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee2);
-      const txn2=makeTxnId();
-      userSessions[uid]={step:"menu",data:{}};
-      return sendButtons(
-        `💵 Cash Out\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee2)}\nTxnID: ${txn2}\nStatus: ✅\nDate: ${nowStr()}`,
-        menuButtons
-      );
-
-    // --- Mobile Recharge ---
-    case "recharge_mobile":
-      session.data.mobile=text;
-      session.step="recharge_amount";
-      userSessions[uid]=session;
-      return message.reply("Enter recharge amount:");
-
-    case "recharge_amount":
-      const amt3=Number(text);
-      if(isNaN(amt3)||amt3<=0) return message.reply("❌ Invalid amount.");
-      session.data.amount=amt3;
-      session.step="recharge_pin";
-      userSessions[uid]=session;
-      return message.reply("Enter PIN to confirm:");
-
-    case "recharge_pin":
-      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
-      const fee3=computeFee(session.data.amount);
-      if(user.balance<session.data.amount+fee3) return message.reply("❌ Insufficient balance including fee.");
-      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee3);
-      const txn3=makeTxnId();
-      userSessions[uid]={step:"menu",data:{}};
-      return sendButtons(
-        `📱 Mobile Recharge\nMobile: ${session.data.mobile}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee3)}\nTxnID: ${txn3}\nStatus: ✅\nDate: ${nowStr()}`,
-        menuButtons
-      );
-
-    // --- Bank Deposit ---
-    case "bank_deposit":
-      const amt4=Number(text);
-      if(isNaN(amt4)||amt4<=0) return message.reply("❌ Invalid amount.");
-      session.data.amount=amt4;
-      session.step="bank_deposit_pin";
-      userSessions[uid]=session;
-      return message.reply("Enter PIN to confirm deposit:");
-
-    case "bank_deposit_pin":
-      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
-      const fee4=computeFee(session.data.amount);
-      if(user.balance<session.data.amount+fee4) return message.reply("❌ Insufficient balance including fee.");
-      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee4);
-      const txn4=makeTxnId();
-      userSessions[uid]={step:"menu",data:{}};
-      return sendButtons(
-        `🏦 Bank Deposit\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee4)}\nTxnID: ${txn4}\nStatus: ✅\nDate: ${nowStr()}`,
-        menuButtons
-      );
-
-    // --- Bank Withdraw ---
-    case "bank_withdraw":
-      const amt5=Number(text);
-      if(isNaN(amt5)||amt5<=0) return message.reply("❌ Invalid amount.");
-      session.data.amount=amt5;
-      session.step="bank_withdraw_pin";
-      userSessions[uid]=session;
-      return message.reply("Enter PIN to confirm withdraw:");
-
-    case "bank_withdraw_pin":
-      if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
-      const fee5=computeFee(session.data.amount);
-      if(user.balance<session.data.amount+fee5) return message.reply("❌ Insufficient balance including fee.");
-      await performTransaction(db,uid,OWNER_UID,session.data.amount,fee5);
-      const txn5=makeTxnId();
-      userSessions[uid]={step:"menu",data:{}};
-      return sendButtons(
-        `🏦 Bank Withdraw\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee5)}\nTxnID: ${txn5}\nStatus: ✅\nDate: ${nowStr()}`,
-        menuButtons
-      );
-
-    // --- Reset PIN ---
-    case "reset_pin":
-      if(!/^\d{4}$/.test(text)) return message.reply("❌ PIN must be 4 digits.");
-      await setPIN(db,uid,text);
-      session.step="menu";
-      userSessions[uid]=session;
-      return sendButtons("✅ PIN reset successful.", menuButtons);
-
-    default:
-      session.step="checkPIN";
-      userSessions[uid]=session;
-      return message.reply("❌ Session error. Enter PIN to start.");
-  }
-}
-
-// --- Export ---
+// ---------------- Meta-data Top ----------------
 module.exports = {
   config: {
     name: "bkash",
-    category: "Economy",
-    author: "MH",
+    category: "Economy",                
+    author: "MH",                        
     countDown: 5,
     shortDescription: "bKash simulator with PIN & fees",
     longDescription: "Interactive bKash bot with Send Money, Cash Out, Mobile Recharge, Bank Deposit/Withdraw, PIN verification, fees and receipts. Quick Reply / Button support included."
   },
-  run
+
+  // ---------------- Main Bot Logic ----------------
+  run: async function({message,args,sendButtons}) {
+    const { MongoClient } = require("mongodb");
+    const bcrypt = require("bcrypt");
+
+    const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
+    const MONGO_DB = process.env.MONGO_DB || "bkash_sim";
+    const OWNER_UID = process.env.OWNER_UID || "owner_123";
+
+    const FEE_PERCENT = 1.5;
+    const MIN_FEE = 2;
+    const MAX_FEE = 100;
+
+    function computeFee(amount) {
+      const raw = (amount * FEE_PERCENT)/100;
+      const ceilRaw = Math.ceil(raw);
+      return Math.max(MIN_FEE, Math.min(MAX_FEE, ceilRaw));
+    }
+
+    let client;
+    async function getDb() {
+      if (!client) {
+        client = new MongoClient(MONGO_URI, { useNewUrlParser:true, useUnifiedTopology:true });
+        await client.connect();
+      }
+      return client.db(MONGO_DB);
+    }
+
+    const userSessions = {}; 
+
+    function nowStr() {
+      const now = new Date();
+      return now.toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    }
+
+    function fmt(n){return `${n} BDT`;}
+    function makeTxnId(){return Math.random().toString(36).substring(2,10).toUpperCase();}
+
+    async function getUser(db, uid){ return db.collection("users").findOne({_id:uid}); }
+    async function createUserIfNotExists(db, uid, name="User"){
+      const users = db.collection("users");
+      const exists = await users.findOne({_id:uid});
+      if(!exists){ await users.insertOne({_id:uid,name,pinHash:null,balance:0}); return {_id:uid,name,pinHash:null,balance:0}; }
+      return exists;
+    }
+    async function setPIN(db, uid, pin){ const hash = await bcrypt.hash(pin,10); await db.collection("users").updateOne({_id:uid},{ $set:{pinHash:hash} }); }
+    async function verifyPIN(db, uid, pin){ const user = await getUser(db, uid); if(!user||!user.pinHash) return false; return bcrypt.compare(pin,user.pinHash); }
+
+    const menuButtons = [
+      { title: "Send Money", payload: "MENU_SEND" },
+      { title: "Cash Out", payload: "MENU_CASH" },
+      { title: "Mobile Recharge", payload: "MENU_RECHARGE" },
+      { title: "Reset PIN", payload: "MENU_PIN" },
+      { title: "Bank Deposit", payload: "MENU_DEPOSIT" },
+      { title: "Bank Withdraw", payload: "MENU_WITHDRAW" },
+      { title: "Balance", payload: "MENU_BALANCE" },
+    ];
+
+    function getMenuText(){ return "💸 bKash Menu\nSelect an option:"; }
+
+    async function performTransaction(db,senderID,receiverID,amount,fee){
+      await db.collection("users").updateOne({_id:senderID},{ $inc:{balance:-amount-fee} });
+      await db.collection("users").updateOne({_id:receiverID},{ $inc:{balance:amount} });
+      await db.collection("users").updateOne({_id:OWNER_UID},{ $inc:{balance:fee} });
+    }
+
+    let uid = message.senderID;
+    let name = message.senderName || "User";
+    const db = await getDb();
+
+    await createUserIfNotExists(db,uid,name);
+    await createUserIfNotExists(db,OWNER_UID,"Bot Owner");
+
+    let session = userSessions[uid] || {step:"checkPIN",data:{}};
+    const user = await getUser(db,uid);
+
+    // PIN setup
+    if(!user.pinHash){
+      if(!args[0]) return message.reply(`${name}, set 4-digit PIN: .bkash 1234`);
+      const pin = args[0];
+      if(!/^\d{4}$/.test(pin)) return message.reply("❌ PIN must be 4 digits.");
+      await setPIN(db,uid,pin);
+      userSessions[uid] = {step:null,data:{}};
+      return message.reply("✅ PIN set! Use .bkash YOUR_PIN to open menu.");
+    }
+
+    const text = args[0] || message.text.trim();
+
+    switch(session.step){
+      case "checkPIN":
+        if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN!");
+        session.step="menu";
+        userSessions[uid]=session;
+        return sendButtons(getMenuText(), menuButtons);
+
+      case "menu":
+        switch(text){
+          case "MENU_SEND": session.step="send_uid"; return message.reply("Enter receiver UID:");
+          case "MENU_CASH": session.step="cash_amount"; return message.reply("Enter Cash Out amount:");
+          case "MENU_RECHARGE": session.step="recharge_mobile"; return message.reply("Enter mobile number:");
+          case "MENU_PIN": session.step="reset_pin"; return message.reply("Enter new 4-digit PIN:");
+          case "MENU_DEPOSIT": session.step="bank_deposit"; return message.reply("Enter deposit amount:");
+          case "MENU_WITHDRAW": session.step="bank_withdraw"; return message.reply("Enter withdraw amount:");
+          case "MENU_BALANCE": const fresh = await getUser(db,uid); return message.reply(`💰 Balance: ${fmt(fresh.balance)}`);
+          default: return message.reply("❌ Invalid option. Use menu buttons.");
+        }
+
+      case "send_uid":
+        session.data.receiverUID=text;
+        session.step="send_amount";
+        userSessions[uid]=session;
+        return message.reply("Enter amount:");
+
+      case "send_amount":
+        const amt1=Number(text);
+        if(isNaN(amt1)||amt1<=0) return message.reply("❌ Invalid amount.");
+        session.data.amount=amt1;
+        session.step="send_pin";
+        userSessions[uid]=session;
+        return message.reply("Enter PIN to confirm:");
+
+      case "send_pin":
+        if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+        const fee1=computeFee(session.data.amount);
+        if(user.balance<session.data.amount+fee1) return message.reply("❌ Insufficient balance including fee.");
+        const recv1 = await createUserIfNotExists(db,session.data.receiverUID);
+        await performTransaction(db,uid,recv1._id,session.data.amount,fee1);
+        const txn1=makeTxnId();
+        userSessions[uid]={step:"menu",data:{}};
+        return sendButtons(
+          `📱 Send Money\nSender: ${name}\nReceiver: ${recv1._id}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee1)}\nTxnID: ${txn1}\nStatus: ✅\nDate: ${nowStr()}`,
+          menuButtons
+        );
+
+      case "cash_amount":
+        const amt2=Number(text);
+        if(isNaN(amt2)||amt2<=0) return message.reply("❌ Invalid amount.");
+        session.data.amount=amt2;
+        session.step="cash_pin";
+        userSessions[uid]=session;
+        return message.reply("Enter PIN to confirm:");
+
+      case "cash_pin":
+        if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+        const fee2=computeFee(session.data.amount);
+        if(user.balance<session.data.amount+fee2) return message.reply("❌ Insufficient balance including fee.");
+        await performTransaction(db,uid,OWNER_UID,session.data.amount,fee2);
+        const txn2=makeTxnId();
+        userSessions[uid]={step:"menu",data:{}};
+        return sendButtons(
+          `💵 Cash Out\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee2)}\nTxnID: ${txn2}\nStatus: ✅\nDate: ${nowStr()}`,
+          menuButtons
+        );
+
+      case "recharge_mobile":
+        session.data.mobile=text;
+        session.step="recharge_amount";
+        userSessions[uid]=session;
+        return message.reply("Enter recharge amount:");
+
+      case "recharge_amount":
+        const amt3=Number(text);
+        if(isNaN(amt3)||amt3<=0) return message.reply("❌ Invalid amount.");
+        session.data.amount=amt3;
+        session.step="recharge_pin";
+        userSessions[uid]=session;
+        return message.reply("Enter PIN to confirm:");
+
+      case "recharge_pin":
+        if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+        const fee3=computeFee(session.data.amount);
+        if(user.balance<session.data.amount+fee3) return message.reply("❌ Insufficient balance including fee.");
+        await performTransaction(db,uid,OWNER_UID,session.data.amount,fee3);
+        const txn3=makeTxnId();
+        userSessions[uid]={step:"menu",data:{}};
+        return sendButtons(
+          `📱 Mobile Recharge\nMobile: ${session.data.mobile}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee3)}\nTxnID: ${txn3}\nStatus: ✅\nDate: ${nowStr()}`,
+          menuButtons
+        );
+
+      case "bank_deposit":
+        const amt4=Number(text);
+        if(isNaN(amt4)||amt4<=0) return message.reply("❌ Invalid amount.");
+        session.data.amount=amt4;
+        session.step="bank_deposit_pin";
+        userSessions[uid]=session;
+        return message.reply("Enter PIN to confirm deposit:");
+
+      case "bank_deposit_pin":
+        if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+        const fee4=computeFee(session.data.amount);
+        if(user.balance<session.data.amount+fee4) return message.reply("❌ Insufficient balance including fee.");
+        await performTransaction(db,uid,OWNER_UID,session.data.amount,fee4);
+        const txn4=makeTxnId();
+        userSessions[uid]={step:"menu",data:{}};
+        return sendButtons(
+          `🏦 Bank Deposit\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee4)}\nTxnID: ${txn4}\nStatus: ✅\nDate: ${nowStr()}`,
+          menuButtons
+        );
+
+      case "bank_withdraw":
+        const amt5=Number(text);
+        if(isNaN(amt5)||amt5<=0) return message.reply("❌ Invalid amount.");
+        session.data.amount=amt5;
+        session.step="bank_withdraw_pin";
+        userSessions[uid]=session;
+        return message.reply("Enter PIN to confirm withdraw:");
+
+      case "bank_withdraw_pin":
+        if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN.");
+        const fee5=computeFee(session.data.amount);
+        if(user.balance<session.data.amount+fee5) return message.reply("❌ Insufficient balance including fee.");
+        await performTransaction(db,uid,OWNER_UID,session.data.amount,fee5);
+        const txn5=makeTxnId();
+        userSessions[uid]={step:"menu",data:{}};
+        return sendButtons(
+          `🏦 Bank Withdraw\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee5)}\nTxnID: ${txn5}\nStatus: ✅\nDate: ${nowStr()}`,
+          menuButtons
+        );
+
+      case "reset_pin":
+        if(!/^\d{4}$/.test(text)) return message.reply("❌ PIN must be 4 digits.");
+        await setPIN(db,uid,text);
+        session.step="menu";
+        userSessions[uid]=session;
+        return sendButtons("✅ PIN reset successful.", menuButtons);
+
+      default:
+        session.step="checkPIN";
+        userSessions[uid]=session;
+        return message.reply("❌ Session error. Enter PIN to start.");
+    }
+  }
 };
