@@ -1,7 +1,8 @@
-// bkashFullBot.js
+// bkashFullBotQuick.js
 const { MongoClient } = require("mongodb");
 const bcrypt = require("bcrypt");
 
+// --- Config ---
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
 const MONGO_DB = process.env.MONGO_DB || "bkash_sim";
 const OWNER_UID = process.env.OWNER_UID || "owner_123";
@@ -44,10 +45,20 @@ async function createUserIfNotExists(db, uid, name="User"){
   return exists;
 }
 async function setPIN(db, uid, pin){ const hash = await bcrypt.hash(pin,10); await db.collection("users").updateOne({_id:uid},{ $set:{pinHash:hash} }); }
-async function verifyPIN(db, uid, pin){ const user = await getUser(db, uid); if(!user||!user.pinHash) return false; return bcrypt.compare(pin,pinHash); }
+async function verifyPIN(db, uid, pin){ const user = await getUser(db, uid); if(!user||!user.pinHash) return false; return bcrypt.compare(pin,user.pinHash); }
 
-// --- Menu ---
-function getMenu(){ return "💸 bKash Menu\n1️⃣ Send Money\n2️⃣ Cash Out\n3️⃣ Mobile Recharge\n4️⃣ Reset PIN\n5️⃣ Bank Deposit\n6️⃣ Bank Withdraw\n7️⃣ Balance\nReply with number or use buttons."; }
+// --- Menu Buttons ---
+const menuButtons = [
+  { title: "Send Money", payload: "MENU_SEND" },
+  { title: "Cash Out", payload: "MENU_CASH" },
+  { title: "Mobile Recharge", payload: "MENU_RECHARGE" },
+  { title: "Reset PIN", payload: "MENU_PIN" },
+  { title: "Bank Deposit", payload: "MENU_DEPOSIT" },
+  { title: "Bank Withdraw", payload: "MENU_WITHDRAW" },
+  { title: "Balance", payload: "MENU_BALANCE" },
+];
+
+function getMenuText(){ return "💸 bKash Menu\nSelect an option:"; }
 
 // --- Transaction ---
 async function performTransaction(db,senderID,receiverID,amount,fee){
@@ -56,8 +67,8 @@ async function performTransaction(db,senderID,receiverID,amount,fee){
   await db.collection("users").updateOne({_id:OWNER_UID},{ $inc:{balance:fee} });
 }
 
-// --- Main Run ---
-module.exports.run = async function({message,args}) {
+// --- Main Bot Logic ---
+async function run({message,args,sendButtons}){ // sendButtons: function(title, buttons)
   const db = await getDb();
   const uid = message.senderID;
   const name = message.senderName || "User";
@@ -85,18 +96,18 @@ module.exports.run = async function({message,args}) {
       if(!await verifyPIN(db,uid,text)) return message.reply("❌ Incorrect PIN!");
       session.step="menu";
       userSessions[uid]=session;
-      return message.reply(getMenu());
+      return sendButtons(getMenuText(), menuButtons);
 
     case "menu":
       switch(text){
-        case "1": session.step="send_uid"; return message.reply("Enter receiver UID:");
-        case "2": session.step="cash_amount"; return message.reply("Enter Cash Out amount:");
-        case "3": session.step="recharge_mobile"; return message.reply("Enter mobile number:");
-        case "4": session.step="reset_pin"; return message.reply("Enter new 4-digit PIN:");
-        case "5": session.step="bank_deposit"; return message.reply("Enter deposit amount:");
-        case "6": session.step="bank_withdraw"; return message.reply("Enter withdraw amount:");
-        case "7": const fresh = await getUser(db,uid); session.step="menu"; userSessions[uid]=session; return message.reply(`💰 Balance: ${fmt(fresh.balance)}`);
-        default: return message.reply("❌ Invalid option. Reply 1-7.");
+        case "MENU_SEND": session.step="send_uid"; return message.reply("Enter receiver UID:");
+        case "MENU_CASH": session.step="cash_amount"; return message.reply("Enter Cash Out amount:");
+        case "MENU_RECHARGE": session.step="recharge_mobile"; return message.reply("Enter mobile number:");
+        case "MENU_PIN": session.step="reset_pin"; return message.reply("Enter new 4-digit PIN:");
+        case "MENU_DEPOSIT": session.step="bank_deposit"; return message.reply("Enter deposit amount:");
+        case "MENU_WITHDRAW": session.step="bank_withdraw"; return message.reply("Enter withdraw amount:");
+        case "MENU_BALANCE": const fresh = await getUser(db,uid); return message.reply(`💰 Balance: ${fmt(fresh.balance)}`);
+        default: return message.reply("❌ Invalid option. Use menu buttons.");
       }
 
     // --- Send Money ---
@@ -122,7 +133,10 @@ module.exports.run = async function({message,args}) {
       await performTransaction(db,uid,recv1._id,session.data.amount,fee1);
       const txn1=makeTxnId();
       userSessions[uid]={step:"menu",data:{}};
-      return message.reply(`📱 Send Money\nSender: ${name}\nReceiver: ${recv1._id}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee1)}\nTxnID: ${txn1}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+      return sendButtons(
+        `📱 Send Money\nSender: ${name}\nReceiver: ${recv1._id}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee1)}\nTxnID: ${txn1}\nStatus: ✅\nDate: ${nowStr()}`,
+        menuButtons
+      );
 
     // --- Cash Out ---
     case "cash_amount":
@@ -140,7 +154,10 @@ module.exports.run = async function({message,args}) {
       await performTransaction(db,uid,OWNER_UID,session.data.amount,fee2);
       const txn2=makeTxnId();
       userSessions[uid]={step:"menu",data:{}};
-      return message.reply(`💵 Cash Out\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee2)}\nTxnID: ${txn2}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+      return sendButtons(
+        `💵 Cash Out\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee2)}\nTxnID: ${txn2}\nStatus: ✅\nDate: ${nowStr()}`,
+        menuButtons
+      );
 
     // --- Mobile Recharge ---
     case "recharge_mobile":
@@ -164,7 +181,10 @@ module.exports.run = async function({message,args}) {
       await performTransaction(db,uid,OWNER_UID,session.data.amount,fee3);
       const txn3=makeTxnId();
       userSessions[uid]={step:"menu",data:{}};
-      return message.reply(`📱 Mobile Recharge\nMobile: ${session.data.mobile}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee3)}\nTxnID: ${txn3}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+      return sendButtons(
+        `📱 Mobile Recharge\nMobile: ${session.data.mobile}\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee3)}\nTxnID: ${txn3}\nStatus: ✅\nDate: ${nowStr()}`,
+        menuButtons
+      );
 
     // --- Bank Deposit ---
     case "bank_deposit":
@@ -182,7 +202,10 @@ module.exports.run = async function({message,args}) {
       await performTransaction(db,uid,OWNER_UID,session.data.amount,fee4);
       const txn4=makeTxnId();
       userSessions[uid]={step:"menu",data:{}};
-      return message.reply(`🏦 Bank Deposit\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee4)}\nTxnID: ${txn4}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+      return sendButtons(
+        `🏦 Bank Deposit\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee4)}\nTxnID: ${txn4}\nStatus: ✅\nDate: ${nowStr()}`,
+        menuButtons
+      );
 
     // --- Bank Withdraw ---
     case "bank_withdraw":
@@ -200,7 +223,10 @@ module.exports.run = async function({message,args}) {
       await performTransaction(db,uid,OWNER_UID,session.data.amount,fee5);
       const txn5=makeTxnId();
       userSessions[uid]={step:"menu",data:{}};
-      return message.reply(`🏦 Bank Withdraw\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee5)}\nTxnID: ${txn5}\nStatus: ✅\nDate: ${nowStr()}\n-------------------\n${getMenu()}`);
+      return sendButtons(
+        `🏦 Bank Withdraw\nAmount: ${fmt(session.data.amount)}\nFee: ${fmt(fee5)}\nTxnID: ${txn5}\nStatus: ✅\nDate: ${nowStr()}`,
+        menuButtons
+      );
 
     // --- Reset PIN ---
     case "reset_pin":
@@ -208,11 +234,24 @@ module.exports.run = async function({message,args}) {
       await setPIN(db,uid,text);
       session.step="menu";
       userSessions[uid]=session;
-      return message.reply("✅ PIN reset successful.\n"+getMenu());
+      return sendButtons("✅ PIN reset successful.", menuButtons);
 
     default:
       session.step="checkPIN";
       userSessions[uid]=session;
       return message.reply("❌ Session error. Enter PIN to start.");
   }
+}
+
+// --- Export ---
+module.exports = {
+  config: {
+    name: "bkash",
+    category: "Economy",
+    author: "MH",
+    countDown: 5,
+    shortDescription: "bKash simulator with PIN & fees",
+    longDescription: "Interactive bKash bot with Send Money, Cash Out, Mobile Recharge, Bank Deposit/Withdraw, PIN verification, fees and receipts. Quick Reply / Button support included."
+  },
+  run
 };
