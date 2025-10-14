@@ -19,10 +19,22 @@ const OWNER_NAME = "Imran";
 if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, JSON.stringify({}), "utf8");
 
 // ---------------- Utilities ----------------
-function readAll() { try { return JSON.parse(fs.readFileSync(DATA_FILE,"utf8")||"{}"); } catch { return {}; } }
-function writeAll(obj){ const tmp=DATA_FILE+".tmp"; fs.writeFileSync(tmp,JSON.stringify(obj,null,2),"utf8"); fs.renameSync(tmp,DATA_FILE); }
-function computeFee(amount){ const raw=Math.ceil((amount*FEE_PERCENT)/100); return Math.max(MIN_FEE,Math.min(MAX_FEE,raw)); }
-function nowStr(){ return new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
+function readAll() {
+  try { return JSON.parse(fs.readFileSync(DATA_FILE,"utf8")||"{}"); } 
+  catch { return {}; }
+}
+function writeAll(obj){
+  const tmp=DATA_FILE+".tmp";
+  fs.writeFileSync(tmp,JSON.stringify(obj,null,2),"utf8");
+  fs.renameSync(tmp,DATA_FILE);
+}
+function computeFee(amount){ 
+  const raw=Math.ceil((amount*FEE_PERCENT)/100); 
+  return Math.max(MIN_FEE,Math.min(MAX_FEE,raw)); 
+}
+function nowStr(){ 
+  return new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}); 
+}
 function fmt(n){ return `${n.toLocaleString()} BDT`; }
 function makeTxnId(){ return Math.random().toString(36).substring(2,10).toUpperCase(); }
 
@@ -42,7 +54,10 @@ async function verifyPIN(uid,pin){
   if(!db[uid]||!db[uid].pinHash) return false; 
   return bcrypt.compare(pin,db[uid].pinHash); 
 }
-function hasPIN(uid){ const db=readAll(); return !!(db[uid]&&db[uid].pinHash); }
+function hasPIN(uid){ 
+  const db=readAll(); 
+  return !!(db[uid]&&db[uid].pinHash); 
+}
 
 // ---------------- User data ----------------
 function ensureUser(uid,name="User"){ 
@@ -63,11 +78,10 @@ function pushHistory(uid,text){
 }
 
 // ---------------- Receipt helpers ----------------
-function receiptBox(title, lines = [], pin = "<PIN>") {
+function receiptBox(title, lines=[], pin="<PIN>"){
+  if(!lines || lines.length===0) lines=["No details available"];
   const lineSep = "──────────────────────────";
-  const filteredLines = lines.filter(l => l && l.trim().length > 0);
-  const content = [title, lineSep, ...filteredLines, lineSep, `Back to menu: .bkash ${pin}`].join("\n");
-  return content.trim() || "‎"; // Zero-width space fallback
+  return [title, lineSep, ...lines, lineSep, `Back to menu: .bkash ${pin}`].join("\n");
 }
 
 // ---------------- Command ----------------
@@ -93,15 +107,15 @@ module.exports={
     // PIN setup
     if(!hasPIN(uid)){
       const pinCandidate = tokens[1] || tokens[0];
-      if(!pinCandidate||!/^\d{4}$/.test(pinCandidate)) return message.reply("🔐 Set a 4-digit PIN first: .bkash 1234");
+      if(!pinCandidate||!/^\d{4}$/.test(pinCandidate)) return await message.reply("🔐 Set a 4-digit PIN first: .bkash 1234");
       await setPIN(uid,pinCandidate);
       const d=readAll(); if(d[uid].balance===0){d[uid].balance=500;writeAll(d);} // starter balance
-      return message.reply("✅ PIN set successfully. Now use `.bkash <PIN>` to open menu.");
+      return await message.reply("✅ PIN set successfully. Now use `.bkash <PIN>` to open menu.");
     }
 
-    if(tokens.length<2) return message.reply("🔐 Provide your 4-digit PIN. Example: .bkash 1234");
-    const pin = tokens[1]; if(!/^\d{4}$/.test(pin)) return message.reply("❌ PIN must be 4 digits.");
-    const okPin = await verifyPIN(uid,pin); if(!okPin) return message.reply("❌ Incorrect PIN.");
+    if(tokens.length<2) return await message.reply("🔐 Provide your 4-digit PIN. Example: .bkash 1234");
+    const pin = tokens[1]; if(!/^\d{4}$/.test(pin)) return await message.reply("❌ PIN must be 4 digits.");
+    const okPin = await verifyPIN(uid,pin); if(!okPin) return await message.reply("❌ Incorrect PIN.");
 
     const db = readAll();
     const userObj = db[uid];
@@ -124,19 +138,19 @@ module.exports={
         `7️⃣ Reset PIN    → .bkash ${pin} 7 <newPIN>`,
         `📜 History      → .bkash ${pin} history`
       ].join("\n");
-      return message.reply(menu || "‎");
+      return await message.reply(menu);
     }
 
     const option = tokens[2]?.toLowerCase()||"";
 
-    try {
+    switch(option){
       // Send Money
-      if(option==="1" || option==="send"){
+      case "1": case "send":{
         const receiver=tokens[3]; const amount=Number(tokens[4]);
-        if(!receiver) return message.reply("❌ Specify receiver UID. Example: .bkash <PIN> 1 <UID> <amt>");
-        if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount.");
+        if(!receiver) return await message.reply("❌ Specify receiver UID. Example: .bkash <PIN> 1 <UID> <amt>");
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount.");
         const fee=computeFee(amount); const total=amount+fee;
-        if(userObj.balance<total) return message.reply(`❌ Not enough balance to cover fee: ${fmt(total)}`);
+        if(userObj.balance<total) return await message.reply(`❌ Not enough balance to cover fee: ${fmt(total)}`);
 
         ensureUser(receiver,`User_${receiver}`);
         db[uid].balance-=total;
@@ -148,107 +162,104 @@ module.exports={
         pushHistory(uid,`Sent ${fmt(amount)} to ${receiver} (Fee ${fmt(fee)}) Txn:${txn}`);
         pushHistory(receiver,`Received ${fmt(amount)} from ${uid} Txn:${txn}`);
 
-        return message.reply(receiptBox("📱 Send Money Successful ✅",[
+        return await message.reply(receiptBox("📱 Send Money Successful ✅",[
           `💳 Sender   : ${userObj.name} (${uid})`,
           `👤 Receiver : ${receiver}`,
           `💰 Amount   : ${fmt(amount)}`,
           `💸 Fee      : ${fmt(fee)}`,
           `🆔 TxnID    : ${txn}`,
           `🗓 Date     : ${nowStr()}`
-        ], pin) || "‎");
+        ], pin));
       }
 
       // Cash Out
-      else if(option==="2" || option==="cash"){
-        const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
+      case "2": case "cash":{
+        const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
         const fee=computeFee(amount); const total=amount+fee;
-        if(userObj.balance<total) return message.reply("❌ Insufficient balance (fee included)");
+        if(userObj.balance<total) return await message.reply("❌ Insufficient balance (fee included)");
         db[uid].balance-=total; db[OWNER_UID].balance+=amount+fee; writeAll(db);
 
         const txn=makeTxnId(); pushHistory(uid,`Cashed out ${fmt(amount)} (Fee ${fmt(fee)}) Txn:${txn}`);
-        return message.reply(receiptBox("💵 Cash Out Successful ✅",[
+        return await message.reply(receiptBox("💵 Cash Out Successful ✅",[
           `💰 Amount   : ${fmt(amount)}`,
           `💸 Fee      : ${fmt(fee)}`,
           `🆔 TxnID    : ${txn}`,
           `🗓 Date     : ${nowStr()}`,
           `💳 Balance  : ${fmt(db[uid].balance)}`
-        ], pin) || "‎");
+        ], pin));
       }
 
       // Mobile Recharge
-      else if(option==="3" || option==="recharge"){
+      case "3": case "recharge":{
         const mobile=tokens[3]; const amount=Number(tokens[4]);
-        if(!mobile) return message.reply("❌ Provide mobile number");
-        if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
+        if(!mobile) return await message.reply("❌ Provide mobile number");
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
         const fee=computeFee(amount); const total=amount+fee;
-        if(userObj.balance<total) return message.reply("❌ Insufficient balance (fee included)");
+        if(userObj.balance<total) return await message.reply("❌ Insufficient balance (fee included)");
         db[uid].balance-=total; db[OWNER_UID].balance+=amount+fee; writeAll(db);
 
         const txn=makeTxnId(); pushHistory(uid,`Mobile recharge ${mobile} ${fmt(amount)} (Fee ${fmt(fee)}) Txn:${txn}`);
-        return message.reply(receiptBox("📱 Mobile Recharge Successful ✅",[
+        return await message.reply(receiptBox("📱 Mobile Recharge Successful ✅",[
           `📱 Mobile   : ${mobile}`,
           `💰 Amount   : ${fmt(amount)}`,
           `💸 Fee      : ${fmt(fee)}`,
           `🆔 TxnID    : ${txn}`,
           `🗓 Date     : ${nowStr()}`,
           `💳 Balance  : ${fmt(db[uid].balance)}`
-        ], pin) || "‎");
+        ], pin));
       }
 
       // Balance
-      else if(option==="4" || option==="balance"){
-        return message.reply(receiptBox("💰 Your Balance",[
+      case "4": case "balance":{
+        return await message.reply(receiptBox("💰 Your Balance",[
           `💵 Cash : ${fmt(db[uid].balance)}`,
           `🏦 Bank : ${fmt(db[uid].bank)}`
-        ], pin) || "‎");
+        ], pin));
       }
 
       // Bank Deposit
-      else if(option==="5" || option==="deposit"){
-        const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
-        if(userObj.balance<amount) return message.reply("❌ Insufficient cash to deposit");
+      case "5": case "deposit":{
+        const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
+        if(userObj.balance<amount) return await message.reply("❌ Insufficient cash to deposit");
         db[uid].balance-=amount; db[uid].bank+=amount; writeAll(db);
         const txn=makeTxnId(); pushHistory(uid,`Deposited ${fmt(amount)} to bank Txn:${txn}`);
-        return message.reply(receiptBox("🏦 Bank Deposit Successful ✅",[
+        return await message.reply(receiptBox("🏦 Bank Deposit Successful ✅",[
           `💵 Amount : ${fmt(amount)}`,
           `💳 Cash   : ${fmt(db[uid].balance)}`,
           `🏦 Bank   : ${fmt(db[uid].bank)}`,
           `🆔 TxnID  : ${txn}`,
           `🗓 Date   : ${nowStr()}`
-        ], pin) || "‎");
+        ], pin));
       }
 
       // Bank Withdraw
-      else if(option==="6" || option==="withdraw"){
-        const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return message.reply("❌ Invalid amount");
-        if(userObj.bank<amount) return message.reply("❌ Insufficient bank balance");
+      case "6": case "withdraw":{
+        const amount=Number(tokens[3]); if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
+        if(userObj.bank<amount) return await message.reply("❌ Insufficient bank balance");
         db[uid].bank-=amount; db[uid].balance+=amount; writeAll(db);
         const txn=makeTxnId(); pushHistory(uid,`Withdrew ${fmt(amount)} from bank Txn:${txn}`);
-        return message.reply(receiptBox("🏦 Bank Withdraw Successful ✅",[
+        return await message.reply(receiptBox("🏦 Bank Withdraw Successful ✅",[
           `💵 Amount : ${fmt(amount)}`,
           `💳 Cash   : ${fmt(db[uid].balance)}`,
           `🏦 Bank   : ${fmt(db[uid].bank)}`,
           `🆔 TxnID  : ${txn}`,
           `🗓 Date   : ${nowStr()}`
-        ], pin) || "‎");
+        ], pin));
       }
 
       // Reset PIN
-      else if(option==="7" || option==="reset"){
-        const newPin=tokens[3]; if(!newPin||!/^\d{4}$/.test(newPin)) return message.reply("❌ New PIN must be 4 digits");
-        await setPIN(uid,newPin); return message.reply("✅ PIN reset successful. Use new PIN.");
+      case "7": case "reset":{
+        const newPin=tokens[3]; if(!newPin||!/^\d{4}$/.test(newPin)) return await message.reply("❌ New PIN must be 4 digits");
+        await setPIN(uid,newPin); return await message.reply("✅ PIN reset successful. Use new PIN.");
       }
 
       // History
-      else if(option==="history"){
-        const hist=(db[uid]&&db[uid].history)?db[uid].history.slice(0,10).join("\n"):"No history";
-        return message.reply(receiptBox("📜 Last Transactions",[hist], pin) || "‎");
+      case "history":{
+        const hist=(db[uid]&&db[uid].history)?db[uid].history.slice(0,10) : ["No history"];
+        return await message.reply(receiptBox("📜 Last Transactions", hist, pin));
       }
 
-      else return message.reply("❌ Invalid option. Use: 1-send,2-cash,3-recharge,4-balance,5-deposit,6-withdraw,7-reset or history");
-    } catch(e){
-      console.error(e);
-      return message.reply("❌ An error occurred. Please try again.");
+      default: return await message.reply("❌ Invalid option. Use: 1-send,2-cash,3-recharge,4-balance,5-deposit,6-withdraw,7-reset or history");
     }
   }
 };
