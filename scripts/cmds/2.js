@@ -9,8 +9,8 @@ const bcrypt = require("bcrypt");
 // ---------------- Config / Metadata ----------------
 module.exports = {
   config: {
-    name: "bkash",
-    aliases: ["bKash", "Bkash", "BK"],
+    name: "2",
+    aliases: ["2", "২", "BK"],
     version: "5.0",
     author: "Imran | GoatBot v2 Style",
     role: 0,
