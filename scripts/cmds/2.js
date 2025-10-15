@@ -3,8 +3,8 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "bkash2",
-    aliases: ["bKash", "Bkash"],
+    name: "3",
+    aliases: ["٣", "3"],
     version: "3.0",
     author: "MH & GPT Fixed",
     role: 0,
