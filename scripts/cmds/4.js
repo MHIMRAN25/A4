@@ -1,3 +1,7 @@
+// bkash_full_final.js
+// Full bKash Simulator: PIN hashed, file-based, dual mode (Text + Button), GoatBot v2 compatible
+// npm install bcrypt fs-extra
+
 const fs = require("fs-extra");
 const path = require("path");
 const bcrypt = require("bcrypt");
@@ -10,144 +14,164 @@ const MAX_FEE = 100;
 const OWNER_UID = "100089926788317";
 const OWNER_NAME = "Imran";
 
-// ---------------- Safe reply ----------------
-async function safeReply(messageObj, text){
-  if(!text || !String(text).trim()) text = "✅ Done";
-  try {
-    await messageObj.reply(text);
-  } catch(e){
-    console.error("[SafeReply] Failed:", e);
-  }
-}
-
-// ---------------- Utilities ----------------
-function computeFee(amount){
-  const fee = Math.ceil((amount * FEE_PERCENT)/100);
-  return Math.max(MIN_FEE, Math.min(MAX_FEE, fee));
-}
-function nowStr(){
-  return new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
-}
-function fmt(n){ return `${Number(n).toLocaleString()} BDT`; }
-function makeTxnId(){ return Math.random().toString(36).substring(2,10).toUpperCase(); }
-
-// ---------------- Smart Cache ----------------
+// ---------------- Smart Cache System ----------------
 let dbCache = null;
-function readAll(){
-  if(!dbCache){
-    try{
-      if(!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE,"{}");
-      dbCache = JSON.parse(fs.readFileSync(DATA_FILE,"utf8")||"{}");
-      console.log("[Cache] Data loaded");
-    }catch(e){ console.error("[Cache] Load failed:",e); dbCache={}; }
+let lastSave = 0;
+const SAVE_INTERVAL = 1000 * 60 * 5;
+
+function readAll() {
+  if (!dbCache) {
+    try {
+      if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "{}");
+      dbCache = JSON.parse(fs.readFileSync(DATA_FILE, "utf8") || "{}");
+      console.log("[Cache] Data loaded.");
+    } catch (err) {
+      console.error("[Cache] Load error:", err);
+      dbCache = {};
+    }
   }
   return dbCache;
 }
-function writeAll(obj){
+
+function writeAll(obj) {
   dbCache = obj;
-  try{
-    fs.writeFileSync(DATA_FILE,JSON.stringify(dbCache,null,2),"utf8");
-    console.log("[Cache] Data saved");
-  }catch(e){ console.error("[Cache] Save failed:",e); }
+  const now = Date.now();
+  if (now - lastSave > SAVE_INTERVAL) {
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(dbCache, null, 2), "utf8");
+      lastSave = now;
+      console.log("[Cache] Data saved.");
+    } catch (err) {
+      console.error("[Cache] Save error:", err);
+    }
+  }
 }
 
+process.on("exit", () => {
+  if (dbCache) {
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(dbCache, null, 2), "utf8");
+      console.log("[Cache] Final save done.");
+    } catch (err) {
+      console.error("[Cache] Exit save failed:", err);
+    }
+  }
+});
+
+// ---------------- Utilities ----------------
+function computeFee(amount) {
+  const raw = Math.ceil((amount * FEE_PERCENT) / 100);
+  return Math.max(MIN_FEE, Math.min(MAX_FEE, raw));
+}
+function nowStr() {
+  return new Date().toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit"
+  });
+}
+function fmt(n) { return `${Number(n).toLocaleString()} BDT`; }
+function makeTxnId() { return Math.random().toString(36).substring(2,10).toUpperCase(); }
+
 // ---------------- PIN ----------------
-async function setPIN(uid,pin){
+async function setPIN(uid, pin) {
   const db = readAll();
-  const hash = await bcrypt.hash(pin,10);
-  if(!db[uid]) db[uid]={};
+  const hash = await bcrypt.hash(pin, 10);
+  if (!db[uid]) db[uid] = {};
   db[uid].pinHash = hash;
-  if(db[uid].balance===undefined) db[uid].balance=500;
-  if(db[uid].bank===undefined) db[uid].bank=0;
-  if(!db[uid].history) db[uid].history=[];
+  if (db[uid].balance === undefined) db[uid].balance = 0;
+  if (db[uid].bank === undefined) db[uid].bank = 0;
+  if (!db[uid].history) db[uid].history = [];
   writeAll(db);
 }
-async function verifyPIN(uid,pin){
+async function verifyPIN(uid, pin) {
   const db = readAll();
-  if(!db[uid] || !db[uid].pinHash) return false;
-  return bcrypt.compare(pin,db[uid].pinHash);
+  if (!db[uid] || !db[uid].pinHash) return false;
+  return bcrypt.compare(pin, db[uid].pinHash);
 }
-function hasPIN(uid){
+function hasPIN(uid) {
   const db = readAll();
   return !!(db[uid] && db[uid].pinHash);
 }
 
 // ---------------- User Data ----------------
-function ensureUser(uid,name="User"){
+function ensureUser(uid, name="User") {
   const db = readAll();
-  if(!db[uid]){
-    db[uid]={name,balance:500,bank:0,history:[]};
+  if (!db[uid]) {
+    db[uid] = { name, balance: 0, bank: 0, history: [] };
     writeAll(db);
   }
   return db[uid];
 }
-function pushHistory(uid,text){
+function pushHistory(uid, text) {
   const db = readAll();
-  if(!db[uid]) db[uid]={balance:500,bank:0,history:[]};
-  db[uid].history = db[uid].history||[];
+  if (!db[uid]) db[uid] = { balance: 0, bank: 0, history: [] };
+  db[uid].history = db[uid].history || [];
   db[uid].history.unshift(`[${nowStr()}] ${text}`);
-  db[uid].history=db[uid].history.slice(0,50);
+  db[uid].history = db[uid].history.slice(0,50);
   writeAll(db);
 }
 
-// ---------------- Receipt ----------------
-function receiptBox(title,lines=[],pin="<PIN>"){
-  const safeLines = Array.isArray(lines)? lines.filter(l=>l && String(l).trim().length>0):[];
+// ---------------- Receipt Helper ----------------
+function receiptBox(title, lines=[], pin="<PIN>") {
+  const safeLines = Array.isArray(lines)? lines.filter(l=>l && String(l).trim().length>0) : [];
   if(safeLines.length===0) safeLines.push("No details available");
-  const lineSep="──────────────────────────";
-  return [title,lineSep,...safeLines,lineSep,`Back to menu: .bkash ${pin}`].join("\n");
+  const lineSep = "──────────────────────────";
+  const content = [title, lineSep, ...safeLines, lineSep, `Back to menu: .bkash ${pin}`].join("\n");
+  return content && String(content).trim()? content : "✅ Transaction completed";
 }
 
-// ---------------- Module Export ----------------
-module.exports={
+// ---------------- Command ----------------
+module.exports = {
   config:{
-    name:"4",
-    aliases:["4","5"],
-    version:"4.0",
-    author:"Imran | GoatBot v2 Style",
-    role:0,
-    shortDescription:"Offline bKash simulator (PIN hashed, file based).",
-    longDescription:"Send Money, Cash Out, Recharge, Bank Deposit/Withdraw, History, Admin Panel with receipt style. Safe dual Text+Button mode.",
-    category:"💰 Economy",
-    guide:{
-      en:"{pn} → show menu\n{pn} setpin <4-digit>\n{pn} <PIN> 1 <UID> <amt>\n{pn} <PIN> 2 <amt>\n{pn} <PIN> 3 <mobile> <amt>\n{pn} <PIN> balance"
+    name: "4",
+    aliases: ["1","৩","4"],
+    version: "4.0",
+    author: "Imran | GoatBot v2",
+    shortDescription: "Offline bKash simulator (PIN hashed, file based).",
+    longDescription: "Send Money, Cash Out, Mobile Recharge, Bank Deposit/Withdraw, History, Owner Panel with stylish receipt. Dual Text+Button mode.",
+    category: "💰 Economy",
+    role: 0,
+    guide: {
+      en: "{pn} → show menu\n{pn} setpin <4-digit>\n{pn} <PIN> 1 <UID> <amt>\n{pn} <PIN> 2 <amt>\n{pn} <PIN> 3 <mobile> <amt>\n{pn} <PIN> 4\n{pn} <PIN> 5 <amt>\n{pn} <PIN> 6 <amt>\n{pn} <PIN> 7 <newPIN>\n{pn} <PIN> history\n{pn} <PIN> admin (owner only)"
     }
   },
 
-  onStart: async function({message,event,args}){ return; },
+  onStart: async function({message, args, event}) { return; },
 
-  run: async function({message,event,args}){
-    try{
-      if(!message||!event) return console.error("[BKash] Missing message/event");
+  run: async function({message, args, event}) {
+    if(!message || !event) return console.error("Missing message/event object");
+    const uid = String(event?.senderID || message?.senderID);
+    const name = event?.senderName || message?.senderName || `User_${uid}`;
+    ensureUser(uid,name);
 
-      const uid = String(event.senderID||message.senderID);
-      const name = event.senderName||message.senderName||`User_${uid}`;
-      ensureUser(uid,name);
+    const body = event?.body || message?.text || message?.body || "";
+    const tokens = typeof body==="string" && body.trim().length>0 ? body.trim().split(/\s+/) : (args||[]);
 
-      const db = readAll();
-      ensureUser(OWNER_UID,OWNER_NAME);
-
-      const body = event.body||message.text||"";
-      const tokens = body.trim().split(/\s+/);
-
-      // ---------- Set PIN ----------
+    try {
+      // ---------------- PIN Setup ----------------
       if(!hasPIN(uid)){
-        const pinCandidate = tokens[1]||tokens[0];
-        if(!pinCandidate||!/^\d{4}$/.test(pinCandidate)) return safeReply(message,"🔐 Set a 4-digit PIN first: .bkash 1234");
+        const pinCandidate = tokens[1] || tokens[0];
+        if(!pinCandidate || !/^\d{4}$/.test(pinCandidate)){
+          return await message.reply("🔐 Set a 4-digit PIN first: .bkash 1234");
+        }
         await setPIN(uid,pinCandidate);
-        return safeReply(message,"✅ PIN set successfully. Now use `.bkash <PIN>` to open menu.");
+        const d = readAll();
+        if(d[uid].balance===0){ d[uid].balance=500; writeAll(d); }
+        return await message.reply("✅ PIN set successfully. Now use `.bkash <PIN>` to open menu.");
       }
 
-      if(tokens.length<2) return safeReply(message,"🔐 Provide your 4-digit PIN. Example: .bkash 1234");
+      if(tokens.length<2) return await message.reply("🔐 Provide your 4-digit PIN. Example: .bkash 1234");
 
       const pin = tokens[1];
-      if(!/^\d{4}$/.test(pin)) return safeReply(message,"❌ PIN must be 4 digits.");
+      if(!/^\d{4}$/.test(pin)) return await message.reply("❌ PIN must be 4 digits.");
       const okPin = await verifyPIN(uid,pin);
-      if(!okPin) return safeReply(message,"❌ Incorrect PIN.");
+      if(!okPin) return await message.reply("❌ Incorrect PIN.");
 
+      const db = readAll();
       const userObj = db[uid];
+      ensureUser(OWNER_UID, OWNER_NAME);
 
-      // ---------- Menu ----------
+      // ---------------- Menu Buttons ----------------
       if(tokens.length===2){
         const menuLines = [
           `💸 bKash Menu — ${userObj.name}`,
@@ -155,28 +179,34 @@ module.exports={
           `🏦 Bank  : ${fmt(userObj.bank)}`,
           `1️⃣ Send Money   → .bkash ${pin} 1 <UID> <amt>`,
           `2️⃣ Cash Out     → .bkash ${pin} 2 <amt>`,
-          `3️⃣ Recharge     → .bkash ${pin} 3 <mobile> <amt>`,
+          `3️⃣ Mobile Recharge → .bkash ${pin} 3 <mobile> <amt>`,
           `4️⃣ Balance      → .bkash ${pin} 4`,
           `5️⃣ Bank Deposit → .bkash ${pin} 5 <amt>`,
           `6️⃣ Bank Withdraw→ .bkash ${pin} 6 <amt>`,
           `7️⃣ Reset PIN    → .bkash ${pin} 7 <newPIN>`,
           `📜 History      → .bkash ${pin} history`,
-          uid===OWNER_UID?`👑 Admin → .bkash ${pin} admin`:""
+          uid===OWNER_UID ? `👑 Admin → .bkash ${pin} admin` : ""
         ].filter(Boolean).join("\n");
-        return safeReply(message,menuLines);
+        return await message.reply(menuLines);
       }
 
-      const option = tokens[2]?.toLowerCase()||"";
+      // ---------------- Options (Send, Cash, Recharge, etc.) ----------------
+      const option = tokens[2]?.toLowerCase() || "";
 
-      // ---------------- Command Cases ----------------
+      // [Send Money, Cash Out, Mobile Recharge, Balance, Bank Deposit/Withdraw, Reset PIN, History, Admin]
+      // সম্পূর্ণ কোড আগের reply অনুযায়ী ঠিক করে বসানো হয়েছে। 
+      // এই অংশ আগের কোড থেকে 그대로 ব্যবহার হবে।
+
+      // --- Send Money ---
       if(option==="1"||option==="send"){
         const receiver = tokens[3];
         const amount = Number(tokens[4]);
-        if(!receiver||!amount||amount<=0) return safeReply(message,"❌ Invalid receiver or amount.");
-        if(receiver===uid) return safeReply(message,"❌ Cannot send to yourself.");
+        if(!receiver) return await message.reply("❌ Specify receiver UID.");
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount.");
+        if(receiver===uid) return await message.reply("❌ Cannot send money to yourself.");
         const fee = computeFee(amount);
         const total = amount+fee;
-        if(userObj.balance<total) return safeReply(message,`❌ Not enough balance (fee included: ${fmt(total)})`);
+        if(userObj.balance<total) return await message.reply(`❌ Not enough balance (fee included): ${fmt(total)}`);
 
         ensureUser(receiver,`User_${receiver}`);
         db[uid].balance-=total;
@@ -188,25 +218,136 @@ module.exports={
         pushHistory(uid,`Sent ${fmt(amount)} to ${receiver} (Fee ${fmt(fee)}) Txn:${txn}`);
         pushHistory(receiver,`Received ${fmt(amount)} from ${uid} Txn:${txn}`);
 
-        const textSend = receiptBox("📱 Send Money Successful ✅",[
+        return await message.reply(receiptBox("📱 Send Money Successful ✅",[
           `💳 Sender   : ${userObj.name} (${uid})`,
           `👤 Receiver : ${receiver}`,
           `💰 Amount   : ${fmt(amount)}`,
           `💸 Fee      : ${fmt(fee)}`,
           `🆔 TxnID    : ${txn}`,
           `🗓 Date     : ${nowStr()}`
-        ],pin);
-
-        return safeReply(message,textSend);
+        ],pin));
       }
 
-      // --- Other commands: Cash Out, Bank Deposit/Withdraw, History, Reset PIN, Admin --- 
-      // (Structure same as Send Money: verify input, update balances, push history, safeReply with receiptBox)
-      // You can add them using similar pattern
+      // --- Cash Out ---
+      if(option==="2"||option==="cash"){
+        const amount = Number(tokens[3]);
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
+        const fee = computeFee(amount);
+        const total = amount+fee;
+        if(userObj.balance<total) return await message.reply("❌ Insufficient balance (fee included)");
+        db[uid].balance-=total;
+        db[OWNER_UID].balance+=fee;
+        writeAll(db);
+
+        const txn = makeTxnId();
+        pushHistory(uid,`Cashed out ${fmt(amount)} (Fee ${fmt(fee)}) Txn:${txn}`);
+        return await message.reply(receiptBox("💵 Cash Out Successful ✅",[
+          `💰 Amount   : ${fmt(amount)}`,
+          `💸 Fee      : ${fmt(fee)}`,
+          `🆔 TxnID    : ${txn}`,
+          `🗓 Date     : ${nowStr()}`,
+          `💳 Balance  : ${fmt(db[uid].balance)}`
+        ],pin));
+      }
+
+      // --- Mobile Recharge ---
+      if(option==="3"||option==="recharge"){
+        const mobile = tokens[3];
+        const amount = Number(tokens[4]);
+        if(!mobile) return await message.reply("❌ Provide mobile number");
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
+        const fee = computeFee(amount);
+        const total = amount+fee;
+        if(userObj.balance<total) return await message.reply("❌ Insufficient balance (fee included)");
+        db[uid].balance-=total;
+        db[OWNER_UID].balance+=fee;
+        writeAll(db);
+
+        const txn = makeTxnId();
+        pushHistory(uid,`Mobile recharge ${mobile} ${fmt(amount)} (Fee ${fmt(fee)}) Txn:${txn}`);
+        return await message.reply(receiptBox("📱 Mobile Recharge Successful ✅",[
+          `📱 Mobile : ${mobile}`,
+          `💰 Amount : ${fmt(amount)}`,
+          `💸 Fee    : ${fmt(fee)}`,
+          `🆔 TxnID  : ${txn}`,
+          `🗓 Date  : ${nowStr()}`,
+          `💳 Balance: ${fmt(db[uid].balance)}`
+        ],pin));
+      }
+
+      // --- Balance ---
+      if(option==="4"||option==="balance"){
+        return await message.reply(receiptBox("💰 Your Balance",[
+          `💵 Cash : ${fmt(db[uid].balance)}`,
+          `🏦 Bank : ${fmt(db[uid].bank)}`
+        ],pin));
+      }
+
+      // --- Bank Deposit ---
+      if(option==="5"||option==="deposit"){
+        const amount = Number(tokens[3]);
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
+        if(userObj.balance<amount) return await message.reply("❌ Insufficient cash to deposit");
+        db[uid].balance-=amount;
+        db[uid].bank+=amount;
+        writeAll(db);
+        const txn = makeTxnId();
+        pushHistory(uid,`Deposited ${fmt(amount)} to bank Txn:${txn}`);
+        return await message.reply(receiptBox("🏦 Bank Deposit Successful ✅",[
+          `💵 Amount : ${fmt(amount)}`,
+          `💳 Cash   : ${fmt(db[uid].balance)}`,
+          `🏦 Bank   : ${fmt(db[uid].bank)}`,
+          `🆔 TxnID  : ${txn}`,
+          `🗓 Date   : ${nowStr()}`
+        ],pin));
+      }
+
+      // --- Bank Withdraw ---
+      if(option==="6"||option==="withdraw"){
+        const amount = Number(tokens[3]);
+        if(!amount||isNaN(amount)||amount<=0) return await message.reply("❌ Invalid amount");
+        if(userObj.bank<amount) return await message.reply("❌ Insufficient bank balance");
+        db[uid].bank-=amount;
+        db[uid].balance+=amount;
+        writeAll(db);
+        const txn = makeTxnId();
+        pushHistory(uid,`Withdrew ${fmt(amount)} from bank Txn:${txn}`);
+        return await message.reply(receiptBox("🏦 Bank Withdraw Successful ✅",[
+          `💵 Amount : ${fmt(amount)}`,
+          `💳 Cash   : ${fmt(db[uid].balance)}`,
+          `🏦 Bank   : ${fmt(db[uid].bank)}`,
+          `🆔 TxnID  : ${txn}`,
+          `🗓 Date   : ${nowStr()}`
+        ],pin));
+      }
+
+      // --- Reset PIN ---
+      if(option==="7"||option==="reset"){
+        const newPin = tokens[3];
+        if(!newPin||!/^\d{4}$/.test(newPin)) return await message.reply("❌ New PIN must be 4 digits");
+        await setPIN(uid,newPin);
+        return await message.reply("✅ PIN reset successful. Use new PIN.");
+      }
+
+      // --- History ---
+      if(option==="history"){
+        const hist = db[uid]?.history?.slice(0,10).join("\n")||"No history";
+        return await message.reply(receiptBox("📜 Last Transactions",[hist],pin));
+      }
+
+      // --- Admin / Owner Menu ---
+      if(option==="admin"&&uid===OWNER_UID){
+        const totalUsers = Object.keys(db).length;
+        const totalBalance = Object.values(db).reduce((a,u)=>a+(u.balance||0)+(u.bank||0),0);
+        return await message.reply(`👑 Admin Info\nUsers: ${totalUsers}\nTotal Balance: ${fmt(totalBalance)}`);
+      }
+
+      // --- Default ---
+      return await message.reply("❌ Invalid option. Use: 1-send,2-cash,3-recharge,4-balance,5-deposit,6-withdraw,7-reset or history");
 
     }catch(e){
-      console.error("[BKash] Run error:",e);
-      await safeReply(message,"❌ An error occurred. Check console log.");
+      console.error("bkash command error:",e);
+      try{ await message.reply("❌ An error occurred. Please try again later."); }catch(err){console.error("Fallback message failed:",err);}
     }
   }
 };
