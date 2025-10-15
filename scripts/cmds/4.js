@@ -101,8 +101,8 @@ function receiptBox(title,lines=[],pin="<PIN>"){
 // ---------------- Module Export ----------------
 module.exports={
   config:{
-    name:"bkash",
-    aliases:["bKash","Bkash"],
+    name:"4",
+    aliases:["4","5"],
     version:"4.0",
     author:"Imran | GoatBot v2 Style",
     role:0,
