@@ -82,7 +82,7 @@ function receipt(title, lines, pin) {
 // --- MAIN COMMAND ---
 module.exports = {
   config: {
-    name: "bkash",
+    name: "bk",
     version: "2.0-final",
     author: "Imran | GoatBot v2 Style",
     category: "💰 Economy",
