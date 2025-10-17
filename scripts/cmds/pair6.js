@@ -4,8 +4,8 @@ const fs = require("fs-extra");
 
 module.exports = {
   config: {
-    name: "pair",
-    aurthor:"ShAn",
+    name: "pair6",
+    aurthor:"imran",
      role: 0,
     shortDescription: " ",
     longDescription: "",
