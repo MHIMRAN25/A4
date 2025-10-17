@@ -3,7 +3,7 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "bkash",
+    name: "2",
     version: "2.1",
     author: "Imran | GoatBot v2",
     description: "Offline bKash simulator with real receipt system",
