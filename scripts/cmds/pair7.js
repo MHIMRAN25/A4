@@ -5,7 +5,7 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "pair7",
-    aurthor:"ShAn",
+    aurthor:"imran",
      role: 0,
     shortDescription: " ",
     longDescription: "",
@@ -54,9 +54,7 @@ module.exports = {
     var tile = djtme[Math.floor(Math.random() * djtme.length)];
 
     var background = [
-      "https://postimg.cc/z3NZJ7Sh",
-      "",
-      "",
+      "https://i.postimg.cc/ZYBTxDWw/received-677690628721083.png",
     ];
     var rd = background[Math.floor(Math.random() * background.length)];
     let getAvtmot = (
