@@ -8,7 +8,7 @@ module.exports = {
     author: "Imran",
     role: 0,
     shortDescription: "Pair with a specific or random opposite gender user",
-    longDescription: "Creates a couple image with both profile pictures and names below them",
+    longDescription: "Creates a beautiful couple image with profile photos and stylish names below them",
     category: "love",
     guide: "{pn} or {pn} @mention",
   },
@@ -27,12 +27,12 @@ module.exports = {
     const allUsers = ThreadInfo.userInfo;
     const botID = api.getCurrentUserID();
 
-    // Mention check
-    let id2;
+
+   let id2;
     if (Object.keys(event.mentions).length > 0) {
       id2 = Object.keys(event.mentions)[0];
     } else {
-      // find opposite gender
+      
       let gender1 = allUsers.find(u => u.id == id1)?.gender;
       let candidates = allUsers.filter(u => u.id !== id1 && u.id !== botID);
       if (gender1 === "MALE") candidates = candidates.filter(u => u.gender === "FEMALE");
@@ -66,8 +66,8 @@ module.exports = {
     ).data;
     fs.writeFileSync(pathAvt2, Buffer.from(avt2, "utf-8"));
 
-    // Background (your chosen PNG)
-    const bgUrl = "https://i.postimg.cc/ZYBTxDWw/received-677690628721083.png"; // replace if you want
+    // Background
+    const bgUrl = "https://i.postimg.cc/ZYBTxDWw/received-677690628721083.png"; // your background
     const bgData = (await axios.get(bgUrl, { responseType: "arraybuffer" })).data;
     fs.writeFileSync(pathImg, Buffer.from(bgData, "utf-8"));
 
@@ -84,22 +84,25 @@ module.exports = {
     ctx.drawImage(avatar1, 109, 160, 320, 321);
     ctx.drawImage(avatar2, 851, 160, 320, 320);
 
-    // Names under avatars
-    ctx.font = "bold 35px Arial";
-    ctx.fillStyle = "#ff4d6d";
+    // ✨ Stylish Names (Bottom, Big, White + Shadow)
+    ctx.font = "bold 50px 'Arial Black', sans-serif"; // Big & clear
+    ctx.fillStyle = "#ffffff"; // White text
     ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.7)"; // Shadow for pop-out
+    ctx.shadowBlur = 12;
 
-    ctx.fillText(name1, 109 + 320 / 2, 160 + 321 + 45);
-    ctx.fillText(name2, 851 + 320 / 2, 160 + 320 + 45);
+    // Write names under avatars
+    ctx.fillText(name1, 109 + 320 / 2, 160 + 321 + 60);
+    ctx.fillText(name2, 851 + 320 / 2, 160 + 320 + 60);
 
     const buffer = canvas.toBuffer();
     fs.writeFileSync(pathImg, buffer);
 
+    // Clean up
     fs.removeSync(pathAvt1);
     fs.removeSync(pathAvt2);
 
+    // Send final image
     return api.sendMessage(
       {
         body: `💞 Love Match 💞\n${name1} ❤️ ${name2}\nCompatibility: ${lovePercent}% 💘`,
