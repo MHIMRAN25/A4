@@ -77,8 +77,8 @@ module.exports = {
 
     // Draw background and avatars
     ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
-    ctx.drawImage(baseAvt1, 109, 161, 310, 310);
-    ctx.drawImage(baseAvt2, 850, 161, 310, 310);
+    ctx.drawImage(baseAvt1, 120,170,300,300);
+    ctx.drawImage(baseAvt2, 861, 170, 300, 300);
 
     // Optional: soft shadow under avatars (for better depth)
     ctx.shadowColor = "rgba(0,0,0,0.25)";
