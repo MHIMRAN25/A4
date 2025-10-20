@@ -2,29 +2,33 @@ module.exports = {
   config: {
     name: "listgroup",
     aliases: ["groupslist", "lg"],
-    version: "4.0",
-    author: "Saif",
+    version: "7.0",
+    author: "Saif + Imran Edit",
     countDown: 5,
     role: 2,
-    shortDescription: "Show active groups and leave",
-    longDescription: "Shows only the groups where the bot is currently a member. Reply with one or multiple index numbers to leave.",
+    shortDescription: "Show active groups, leave groups, pagination, and confirmation",
+    longDescription: "Displays all groups where the bot is currently active. Supports pagination with next/prev and confirmation before leaving all groups.",
     category: "admin",
-    guide: "{p}listgroups"
+    guide: "{p}listgroup [page]"
   },
 
-  onStart: async function ({ api, event }) {
+  onStart: async function ({ api, event, args }) {
     try {
-      // Get list of groups from inbox
-      const threadList = await api.getThreadList(100, null, ["INBOX"]);
+      const page = parseInt(args[0]) || 1;
+      const limit = 20;
+      const start = (page - 1) * limit;
+      const end = start + limit;
+
+      const threadList = await api.getThreadList(200, null, ["INBOX"]);
       const groups = threadList.filter(t => t.isGroup);
 
       let activeGroups = [];
-      for (let g of groups) {
+      for (const g of groups) {
         try {
           const info = await api.getThreadInfo(g.threadID);
           if (info.participantIDs.includes(api.getCurrentUserID())) {
             activeGroups.push({
-              name: g.name,
+              name: g.name || "Unnamed Group",
               threadID: g.threadID
             });
           }
@@ -33,15 +37,19 @@ module.exports = {
         }
       }
 
-      if (activeGroups.length === 0) 
-        return api.sendMessage("I'm not currently in any groups.", event.threadID);
+      if (activeGroups.length === 0)
+        return api.sendMessage("❌ The bot is not currently in any groups.", event.threadID);
 
-      let msg = "📋 Groups where the bot is currently in:\n";
-      activeGroups.forEach((g, i) => {
-        msg += `${i + 1}. ${g.name} (TID: ${g.threadID})\n`;
+      const totalGroups = activeGroups.length;
+      const totalPages = Math.ceil(totalGroups / limit);
+      const currentPage = activeGroups.slice(start, end);
+
+      let msg = `📋 **Groups where the bot is currently in (Page ${page}/${totalPages})**\n📊 Total groups: ${totalGroups}\n\n`;
+      currentPage.forEach((g, i) => {
+        msg += `${start + i + 1}. ${g.name} (TID: ${g.threadID})\n`;
       });
 
-      msg += `\n👉 Reply to this message with index number(s) (e.g. 2 or 1 3 5) to leave those group(s).`;
+      msg += `\n👉 Reply with index numbers (e.g. 2 or 1 3 5) to leave specific groups.\n💣 Type 'all' to leave every group.\n⬅️ Type 'prev' for previous page | ➡️ Type 'next' for next page.`;
 
       return api.sendMessage(msg, event.threadID, (err, info) => {
         if (err) return;
@@ -49,40 +57,113 @@ module.exports = {
           commandName: this.config.name,
           messageID: info.messageID,
           author: event.senderID,
-          groups: activeGroups
+          groups: activeGroups,
+          page,
+          limit
         });
       });
+
     } catch (e) {
       console.error(e);
-      return api.sendMessage("Error fetching active group list.", event.threadID);
+      return api.sendMessage("⚠️ Failed to fetch active group list.", event.threadID);
     }
   },
 
   onReply: async function ({ api, event, Reply }) {
-    const { author, groups } = Reply;
-    if (event.senderID !== author) 
-      return api.sendMessage("You are not the one who ran this command!", event.threadID);
+    const { author, groups, page, limit } = Reply;
+    if (event.senderID !== author)
+      return api.sendMessage("❌ You are not authorized to reply to this command.", event.threadID);
 
-    // Split reply into multiple indexes
-    const indexes = event.body.trim().split(/\s+/).map(n => parseInt(n) - 1);
+    const body = event.body.trim().toLowerCase();
+    const totalGroups = groups.length;
+    const totalPages = Math.ceil(totalGroups / limit);
 
-    const invalid = indexes.some(i => isNaN(i) || i < 0 || i >= groups.length);
-    if (invalid) {
-      return api.sendMessage("One or more invalid indexes. Try again.", event.threadID);
+    // ✅ Pagination: next / prev
+    if (body === "next" || body === "prev") {
+      let newPage = page + (body === "next" ? 1 : -1);
+      if (newPage < 1 || newPage > totalPages)
+        return api.sendMessage("⚠️ No more pages.", event.threadID);
+
+      const start = (newPage - 1) * limit;
+      const end = start + limit;
+      const currentPage = groups.slice(start, end);
+
+      let msg = `📋 **Groups (Page ${newPage}/${totalPages})**\n📊 Total groups: ${totalGroups}\n\n`;
+      currentPage.forEach((g, i) => {
+        msg += `${start + i + 1}. ${g.name} (TID: ${g.threadID})\n`;
+      });
+
+      msg += `\n👉 Reply with index numbers (e.g. 2 or 1 3 5) to leave specific groups.\n💣 Type 'all' to leave every group.\n⬅️ 'prev' | ➡️ 'next'`;
+
+      return api.sendMessage(msg, event.threadID, (err, info) => {
+        if (err) return;
+        global.GoatBot.onReply.set(info.messageID, {
+          commandName: Reply.commandName,
+          messageID: info.messageID,
+          author,
+          groups,
+          page: newPage,
+          limit
+        });
+      });
     }
 
+    // ✅ Leave all groups (confirmation)
+    if (body === "all") {
+      return api.sendMessage(
+        "⚠️ Are you sure you want the bot to leave **all groups**?\nType 'yes' to confirm or 'no' to cancel.",
+        event.threadID,
+        (err, info) => {
+          if (err) return;
+          global.GoatBot.onReply.set(info.messageID, {
+            commandName: Reply.commandName,
+            messageID: info.messageID,
+            author,
+            groups,
+            confirmAll: true
+          });
+        }
+      );
+    }
+
+    // ✅ Confirmation for 'all'
+    if (Reply.confirmAll) {
+      if (body === "yes") {
+        let results = [];
+        for (const target of groups) {
+          try {
+            await api.removeUserFromGroup(api.getCurrentUserID(), target.threadID);
+            results.push(`✅ Left '${target.name}'`);
+          } catch (e) {
+            results.push(`❌ Failed to leave '${target.name}'`);
+          }
+        }
+        return api.sendMessage(results.join("\n"), event.threadID);
+      } else if (body === "no") {
+        return api.sendMessage("❎ Cancelled leaving all groups.", event.threadID);
+      } else {
+        return api.sendMessage("⚠️ Please type 'yes' or 'no'.", event.threadID);
+      }
+    }
+
+    // ✅ Leave selected groups
+    const indexes = body.split(/\s+/).map(n => parseInt(n) - 1);
+    const invalid = indexes.some(i => isNaN(i) || i < 0 || i >= groups.length);
+    if (invalid)
+      return api.sendMessage("⚠️ Invalid index number(s). Please try again.", event.threadID);
+
+    const targets = indexes.map(i => groups[i]);
     let results = [];
-    for (let i of indexes) {
-      const target = groups[i];
+    for (const target of targets) {
       try {
         await api.removeUserFromGroup(api.getCurrentUserID(), target.threadID);
         results.push(`✅ Left '${target.name}'`);
       } catch (e) {
-        console.error(e);
         results.push(`❌ Failed to leave '${target.name}'`);
       }
     }
 
-    return api.sendMessage(results.join("\n"), event.threadID);
+    await api.sendMessage(results.join("\n"), event.threadID);
+    await api.unsendMessage(Reply.messageID);
   }
 };
