@@ -2,12 +2,12 @@ module.exports = {
   config: {
     name: "listgroup",
     aliases: ["groupslist", "lg"],
-    version: "7.0",
+    version: "7.3",
     author: "Saif + Imran Edit",
     countDown: 5,
     role: 2,
-    shortDescription: "Show active groups, leave groups, pagination, and confirmation",
-    longDescription: "Displays all groups where the bot is currently active. Supports pagination with next/prev and confirmation before leaving all groups.",
+    shortDescription: "Show active groups, leave groups, pagination, and safe groups",
+    longDescription: "Displays all groups where the bot is currently active. Supports pagination with next/prev, safe groups, and confirmation before leaving all groups.",
     category: "admin",
     guide: "{p}listgroup [page]"
   },
@@ -49,7 +49,7 @@ module.exports = {
         msg += `${start + i + 1}. ${g.name} (TID: ${g.threadID})\n`;
       });
 
-      msg += `\n👉 Reply with index numbers (e.g. 2 or 1 3 5) to leave specific groups.\n💣 Type 'all' to leave every group.\n⬅️ Type 'prev' for previous page | ➡️ Type 'next' for next page.`;
+      msg += `\n👉 Reply with index numbers (e.g. 2 or 1 3 5) to leave specific groups.\n💣 Type 'all' to leave every group.\n💠 Type 'all but safe(1,5,7)' to leave all except selected groups.\n⬅️ 'prev' | ➡️ 'next'`;
 
       return api.sendMessage(msg, event.threadID, (err, info) => {
         if (err) return;
@@ -78,7 +78,7 @@ module.exports = {
     const totalGroups = groups.length;
     const totalPages = Math.ceil(totalGroups / limit);
 
-    // ✅ Pagination: next / prev
+    // 🔹 Pagination: next / prev
     if (body === "next" || body === "prev") {
       let newPage = page + (body === "next" ? 1 : -1);
       if (newPage < 1 || newPage > totalPages)
@@ -93,7 +93,7 @@ module.exports = {
         msg += `${start + i + 1}. ${g.name} (TID: ${g.threadID})\n`;
       });
 
-      msg += `\n👉 Reply with index numbers (e.g. 2 or 1 3 5) to leave specific groups.\n💣 Type 'all' to leave every group.\n⬅️ 'prev' | ➡️ 'next'`;
+      msg += `\n👉 Reply with index numbers (e.g. 2 or 1 3 5) to leave specific groups.\n💣 Type 'all' to leave every group.\n💠 Type 'all but safe(1,5,7)'\n⬅️ 'prev' | ➡️ 'next'`;
 
       return api.sendMessage(msg, event.threadID, (err, info) => {
         if (err) return;
@@ -108,10 +108,10 @@ module.exports = {
       });
     }
 
-    // ✅ Leave all groups (confirmation)
+    // 🔹 Leave all groups (confirmation)
     if (body === "all") {
       return api.sendMessage(
-        "⚠️ Are you sure you want the bot to leave **all groups**?\nType 'yes' to confirm or 'no' to cancel.",
+        `⚠️ Are you sure you want to leave **all groups**? Reply 'yes' to confirm or 'no' to cancel.`,
         event.threadID,
         (err, info) => {
           if (err) return;
@@ -126,7 +126,36 @@ module.exports = {
       );
     }
 
-    // ✅ Confirmation for 'all'
+    // 🔹 Leave all except safe
+    if (body.startsWith("all but safe")) {
+      const match = body.match(/safe\(([^)]+)\)/);
+      let safeIndexes = [];
+      if (match && match[1]) {
+        safeIndexes = match[1].split(",").map(n => parseInt(n.trim()) - 1);
+      }
+
+      const targets = groups.filter((g, i) => !safeIndexes.includes(i));
+
+      if (targets.length === 0)
+        return api.sendMessage("⚠️ Nothing to leave, all selected groups are safe.", event.threadID);
+
+      return api.sendMessage(
+        `⚠️ Are you sure you want to leave all groups except the safe ones? Reply 'yes' to confirm.`,
+        event.threadID,
+        (err, info) => {
+          if (err) return;
+          global.GoatBot.onReply.set(info.messageID, {
+            commandName: Reply.commandName,
+            messageID: info.messageID,
+            author,
+            groups: targets,
+            confirmAll: true
+          });
+        }
+      );
+    }
+
+    // 🔹 Confirmation for 'all' or 'all but safe'
     if (Reply.confirmAll) {
       if (body === "yes") {
         let results = [];
@@ -140,13 +169,13 @@ module.exports = {
         }
         return api.sendMessage(results.join("\n"), event.threadID);
       } else if (body === "no") {
-        return api.sendMessage("❎ Cancelled leaving all groups.", event.threadID);
+        return api.sendMessage("❎ Cancelled leaving groups.", event.threadID);
       } else {
         return api.sendMessage("⚠️ Please type 'yes' or 'no'.", event.threadID);
       }
     }
 
-    // ✅ Leave selected groups
+    // 🔹 Leave selected indexes
     const indexes = body.split(/\s+/).map(n => parseInt(n) - 1);
     const invalid = indexes.some(i => isNaN(i) || i < 0 || i >= groups.length);
     if (invalid)
