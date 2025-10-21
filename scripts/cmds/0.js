@@ -7,7 +7,7 @@ const scoreFile = path.join(__dirname, "quizScore.json");
 
 module.exports = {
   config: {
-    name: "q",
+    name: "qz2",
     aliases: ["quiz"],
     version: "2.0",
     author: "Imran x GPT",
