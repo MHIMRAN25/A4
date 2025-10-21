@@ -7,7 +7,7 @@ const scoreFile = path.join(__dirname, "quizScore.json");
 
 module.exports = {
   config: {
-    name: "qz3",
+    name: "q",
     aliases: ["quiz"],
     version: "2.0",
     author: "Imran x GPT",
@@ -24,7 +24,6 @@ module.exports = {
     if (!fs.existsSync(banFile)) fs.writeFileSync(banFile, "{}");
     const bans = JSON.parse(fs.readFileSync(banFile));
 
-    // 🔒 Check 8hr ban
     if (bans[userID]) {
       const diff = Date.now() - bans[userID];
       const banTime = 8 * 3600 * 1000;
@@ -32,12 +31,11 @@ module.exports = {
         const remain = banTime - diff;
         const hr = Math.floor(remain / 3600000);
         const min = Math.floor((remain % 3600000) / 60000);
-        return message.reply(`⛔ আপনি এখন কুইজ খেলতে পারবেন না!\nদয়া করে ${hr} ঘন্টা ${min} মিনিট পর চেষ্টা করুন।`);
+        return message.reply(`আপনি এখন কুইজ খেলতে পারবেন না। দয়া করে ${hr} ঘন্টা ${min} মিনিট পর চেষ্টা করুন।`);
       }
     }
 
-    // 🏷️ Category selection
-    const msg = await message.reply("একটি ক্যাটাগরি নির্বাচন করুন:\n1️⃣ ইসলামিক\n2️⃣ ইতিহাস\n\n✍️ রিপ্লাই করুন 1 অথবা 2");
+    const msg = await message.reply("একটি ক্যাটাগরি নির্বাচন করুন:\n1) ইসলামিক\n2) ইতিহাস\n\nরিপ্লাই করুন 1 অথবা 2");
 
     global.GoatBot.onReply.set(msg.messageID, {
       type: "chooseCategory",
@@ -52,7 +50,7 @@ module.exports = {
 
     const type = Reply.type;
 
-    // 🟢 Step 1: Category choose
+    // Category selection
     if (type === "chooseCategory") {
       const choice = event.body.trim();
       let category = null;
@@ -60,58 +58,45 @@ module.exports = {
       else if (choice === "2") category = "history";
       else return message.reply("দয়া করে শুধু 1 বা 2 লিখুন।");
 
-      // Load questions
-      if (!fs.existsSync(questionsFile)) return message.reply("❌ প্রশ্ন ফাইল পাওয়া যায়নি!");
+      if (!fs.existsSync(questionsFile)) return message.reply("প্রশ্ন ফাইল পাওয়া যায়নি!");
       const allQ = JSON.parse(fs.readFileSync(questionsFile));
       const selected = allQ.filter(q => q.category === category);
-      if (selected.length === 0) return message.reply("এই ক্যাটাগরিতে কোনো প্রশ্ন নেই।");
+      if (!selected.length) return message.reply("এই ক্যাটাগরিতে কোনো প্রশ্ন নেই।");
 
-      // Random 20 questions
       const quiz = selected.sort(() => 0.5 - Math.random()).slice(0, 20);
 
-      const session = {
-        index: 0,
-        score: 0,
-        wrong: 0,
-        category,
-        quiz,
-        userID
-      };
+      const session = { index: 0, score: 0, wrong: 0, category, quiz, userID };
 
-      askQuestion(session, message, usersData);
+      askQuestion(session, message);
     }
 
-    // 🟢 Step 2: Answer question
+    // Answer question
     if (type === "answerQuestion") {
       const session = Reply.session;
       const ans = event.body.trim().toLowerCase();
       const q = session.quiz[session.index];
 
-      if (!["a", "b", "c", "d"].includes(ans)) {
+      if (!["a", "b", "c", "d"].includes(ans))
         return message.reply("দয়া করে শুধু a, b, c বা d লিখুন।");
-      }
 
       if (ans === q.answer.toLowerCase()) session.score++;
       else session.wrong++;
 
       session.index++;
 
-      if (session.index >= session.quiz.length) {
-        finishQuiz(session, message, usersData);
-      } else {
-        askQuestion(session, message, usersData);
-      }
+      if (session.index >= session.quiz.length) finishQuiz(session, message, usersData);
+      else askQuestion(session, message);
     }
   }
 };
 
-// 🧩 Ask Question Function
-async function askQuestion(session, message, usersData) {
+// Ask Question
+async function askQuestion(session, message) {
   const q = session.quiz[session.index];
   const opts = q.options;
 
   const msg = await message.reply(
-    `🧠 প্রশ্ন ${session.index + 1}/${session.quiz.length}
+    `প্রশ্ন ${session.index + 1}/${session.quiz.length}
 ${q.question}
 
 A) ${opts[0].slice(3)}
@@ -119,7 +104,7 @@ B) ${opts[1].slice(3)}
 C) ${opts[2].slice(3)}
 D) ${opts[3].slice(3)}
 
-✍️ উত্তর দিন (a/b/c/d)`
+উত্তর দিন (a/b/c/d)`
   );
 
   global.GoatBot.onReply.set(msg.messageID, {
@@ -130,7 +115,7 @@ D) ${opts[3].slice(3)}
   });
 }
 
-// 🏁 Finish Quiz
+// Finish Quiz
 async function finishQuiz(session, message, usersData) {
   const userID = session.userID;
   const correct = session.score;
@@ -154,10 +139,12 @@ async function finishQuiz(session, message, usersData) {
   bans[userID] = Date.now();
   fs.writeFileSync(banFile, JSON.stringify(bans, null, 2));
 
-  // ✅ Extra receipt + quiz summary
-  let quizList = session.quiz.map((q, i) => `${i + 1}. ${q.question}`).join("\n");
-
   message.reply(
-    `🎉 কুইজ শেষ!\n\nসঠিক উত্তর: ${correct}\nভুল উত্তর: ${wrong}\nমোট প্রশ্ন: ${total}\nআপনার টাকা পরিবর্তন: ${moneyChange} 💰\n\n📝 প্রশ্নের তালিকা:\n${quizList}\n\nআপনার ব্যান থাকবে ৮ ঘণ্টা।`
+    `কুইজ শেষ!
+সঠিক: ${correct}
+ভুল: ${wrong}
+আপনি পেয়েছেন: ${moneyChange} টাকা
+
+আপনার ব্যান থাকবে ৮ ঘণ্টা।`
   );
 }
