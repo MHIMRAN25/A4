@@ -5,7 +5,7 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "5.5",
+    version: "6.0",
     author: "M H IMRAN",
     countDown: 5,
     role: 2,
@@ -46,7 +46,7 @@ module.exports = {
       pathBg = __dirname + `/cache/pregnancy_bg.png`;
       pathSave = __dirname + `/cache/${uid2}_pregnancy_result.png`;
 
-      // Get Avatar (simple fetch from Graph API)
+      // Get Avatar
       const avatarRes = await axios.get(
         `https://graph.facebook.com/${uid2}/picture?width=720&height=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`,
         { responseType: "arraybuffer" }
@@ -66,7 +66,7 @@ module.exports = {
 
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // Avatar circular crop (just your snippet)
+      // Avatar circular crop (original snippet)
       const avatarRadius = 230;
       const avatarSize = avatarRadius * 2;
       const avatarX = 262;
@@ -80,30 +80,15 @@ module.exports = {
       ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
-      // Text overlay
-      ctx.font = "bold 40px Arial";
-      ctx.fillStyle = "#ff0066";
-      ctx.textAlign = "center";
-      ctx.fillText("প্রেগন্যান্সি টেস্ট রেজাল্ট", canvas.width / 2, canvas.height - 40);
-
+      // Save final image
       fs.writeFileSync(pathSave, canvas.toBuffer());
-
-      // Random funny text
-      const funnyTexts = [
-        `🤰 অভিনন্দন ${userName}, রিপোর্ট পজিটিভ!`,
-        `😂 ওহ না… ${userName} এখন মা/বাবা হতে যাচ্ছে!`,
-        `👶 ${userName} এক্সপেক্ট করছে! প্রস্তুত হও…`,
-        `😳 ডাক্তার বলছে ${userName} এর টেস্ট রেজাল্ট পজিটিভ!`
-      ];
-      const finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
 
       // Send meme with reactions
       const sent = await message.reply({
-        body: finalText,
+        body: `🤰😂`,
         attachment: fs.createReadStream(pathSave)
       });
 
-      // Reactions
       if (api && sent) {
         api.setMessageReaction("🤰", sent.messageID || event.messageID, () => {}, true);
         api.setMessageReaction("😂", sent.messageID || event.messageID, () => {}, true);
