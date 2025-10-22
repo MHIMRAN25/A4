@@ -5,7 +5,7 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "5.2",
+    version: "5.4",
     author: "M H IMRAN",
     countDown: 5,
     role: 2,
@@ -24,7 +24,7 @@ module.exports = {
     }
   },
 
-  onStart: async function ({ event, message, usersData, getLang, api }) {
+  onStart: async function ({ event, message, usersData, api }) {
     let pathSave, pathBg, pathAvatar;
     try {
       if (module.exports.config.author !== "M H IMRAN")
@@ -36,7 +36,7 @@ module.exports = {
       let uid2;
       if (Object.keys(event.mentions).length > 0) uid2 = Object.keys(event.mentions)[0];
       else if (event.messageReply) uid2 = event.messageReply.senderID;
-      if (!uid2) return message.reply(getLang("noTag"));
+      if (!uid2) return message.reply(this.langs.bn.noTag);
 
       const userData = await usersData.get(uid2);
       const userName = userData?.name || "User";
@@ -68,13 +68,11 @@ module.exports = {
       const bgRes = await axios.get(bgUrl, { responseType: "arraybuffer", timeout: 15000 });
       fs.writeFileSync(pathBg, Buffer.from(bgRes.data, "binary"));
 
-      // ✅ Loading animation messages
+      // Loading messages
       const steps = ["🔄 Checking report…", "🧪 Analyzing…", "✅ Result ready!"];
-      let sentMsg;
       for (let i = 0; i < steps.length; i++) {
-        if (i === 0) sentMsg = await message.reply(steps[i]);
-        else sentMsg = await api.editMessage(sentMsg.messageID, { body: steps[i] });
-        await new Promise(r => setTimeout(r, 1500)); // 1.5 sec delay
+        await message.reply(steps[i]);
+        await new Promise(r => setTimeout(r, 1500));
       }
 
       // Canvas
@@ -85,7 +83,7 @@ module.exports = {
 
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // Avatar - circular crop + fit (x=262, y=295, w=460, h=460)
+      // Avatar circular crop
       const avatarX = 262;
       const avatarY = 295;
       const avatarSize = 460;
@@ -119,22 +117,22 @@ module.exports = {
       ];
       const finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
 
-      // Send meme
+      // Send meme with reactions
       const sent = await message.reply({
         body: finalText,
         attachment: fs.createReadStream(pathSave)
       });
 
-      if (sent?.messageID) {
-        api.setMessageReaction("🤰", sent.messageID, () => {}, true);
-        api.setMessageReaction("😂", sent.messageID, () => {}, true);
+      // Reactions
+      if (api && sent) {
+        api.setMessageReaction("🤰", sent.messageID || event.messageID, () => {}, true);
+        api.setMessageReaction("😂", sent.messageID || event.messageID, () => {}, true);
       }
 
     } catch (err) {
       console.error("❌ ERROR:", err);
       message.reply("⚠️ Error: " + err.message);
     } finally {
-      // Cleanup
       if (pathSave && fs.existsSync(pathSave)) fs.unlinkSync(pathSave);
       if (pathAvatar && fs.existsSync(pathAvatar)) fs.unlinkSync(pathAvatar);
       if (pathBg && fs.existsSync(pathBg)) fs.unlinkSync(pathBg);
