@@ -5,7 +5,7 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "5.0",
+    version: "5.2",
     author: "M H IMRAN",
     countDown: 5,
     role: 2,
@@ -38,8 +38,6 @@ module.exports = {
       else if (event.messageReply) uid2 = event.messageReply.senderID;
       if (!uid2) return message.reply(getLang("noTag"));
 
-      await message.reply("🔎 প্রেগন্যান্সি meme তৈরি হচ্ছে...");
-
       const userData = await usersData.get(uid2);
       const userName = userData?.name || "User";
 
@@ -48,7 +46,7 @@ module.exports = {
       pathBg = __dirname + `/cache/pregnancy_bg.png`;
       pathSave = __dirname + `/cache/${uid2}_pregnancy_result.png`;
 
-      // Get Avatar (Graph + fallback)
+      // Get Avatar
       async function getUserAvatar(uid) {
         try {
           const graphURL = `https://graph.facebook.com/${uid}/picture?width=720&height=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`;
@@ -70,6 +68,15 @@ module.exports = {
       const bgRes = await axios.get(bgUrl, { responseType: "arraybuffer", timeout: 15000 });
       fs.writeFileSync(pathBg, Buffer.from(bgRes.data, "binary"));
 
+      // ✅ Loading animation messages
+      const steps = ["🔄 Checking report…", "🧪 Analyzing…", "✅ Result ready!"];
+      let sentMsg;
+      for (let i = 0; i < steps.length; i++) {
+        if (i === 0) sentMsg = await message.reply(steps[i]);
+        else sentMsg = await api.editMessage(sentMsg.messageID, { body: steps[i] });
+        await new Promise(r => setTimeout(r, 1500)); // 1.5 sec delay
+      }
+
       // Canvas
       const bg = await loadImage(pathBg);
       const avatar = await loadImage(pathAvatar);
@@ -78,22 +85,21 @@ module.exports = {
 
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // Avatar - circular crop + perfect fit
+      // Avatar - circular crop + fit (x=262, y=295, w=460, h=460)
       const avatarX = 262;
       const avatarY = 295;
-      const avatarRadius = 230;
+      const avatarSize = 460;
 
       ctx.save();
       ctx.beginPath();
-      ctx.arc(avatarX + avatarRadius, avatarY + avatarRadius, avatarRadius, 0, Math.PI * 2);
+      ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
 
-      // Fit avatar inside circle
       const minSide = Math.min(avatar.width, avatar.height);
       const sx = (avatar.width - minSide) / 2;
       const sy = (avatar.height - minSide) / 2;
-      ctx.drawImage(avatar, sx, sy, minSide, minSide, avatarX, avatarY, avatarRadius * 2, avatarRadius * 2);
+      ctx.drawImage(avatar, sx, sy, minSide, minSide, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
       // Text
