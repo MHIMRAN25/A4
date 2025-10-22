@@ -28,14 +28,14 @@ module.exports = {
       const uid = Object.keys(event.mentions || {})[0] || event.messageReply?.senderID;
       if (!uid) return message.reply(getLang("noTag"));
 
-      await message.reply("💔 Making your love attitude meme...");
+      await message.reply("hmm w8");
 
       // 🧠 Get user info
       const name = (await usersData.get(uid))?.name || "User";
       const avatarURL = await usersData.getAvatarUrl(uid);
 
       // 🖼️ Load background & avatar
-      const bgURL = "https://i.postimg.cc/s2PHSwcm/1761160815292.png";
+      const bgURL = "https://i.postimg.cc/nr5YDDQh/1000002169-with-bgc.png";
       const [bg, av] = await Promise.all([
         Canvas.loadImage(bgURL),
         Canvas.loadImage(avatarURL)
@@ -47,7 +47,7 @@ module.exports = {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
       // 👤 Avatar placement
-      const [x, y, w, h] = [142, 8, 118, 119];
+      const [x, y, w, h] = [444, 24, 392, 391];
       const r = w / 2;
       ctx.save();
       ctx.beginPath();
