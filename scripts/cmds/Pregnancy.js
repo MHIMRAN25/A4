@@ -6,7 +6,7 @@ const axios = require("axios");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "8.0",
+    version: "9.0",
     author: "M H IMRAN",
     countDown: 5,
     role: 2,
@@ -60,21 +60,22 @@ module.exports = {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
-      // Avatar circular crop
-      const avatarRadius = 230;
-      const avatarSize = avatarRadius * 2;
-      const avatarX = 262;
-      const avatarY = 295;
+      // Avatar circular crop with your values
+      const avatarX = 308;
+      const avatarY = 262;
+      const avatarWidth = 490;
+      const avatarHeight = 489;
+      const avatarRadius = avatarWidth / 2;
 
       ctx.save();
       ctx.beginPath();
       ctx.arc(avatarX + avatarRadius, avatarY + avatarRadius, avatarRadius, 0, Math.PI * 2, true);
       ctx.closePath();
       ctx.clip();
-      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
+      ctx.drawImage(avatar, avatarX, avatarY, avatarWidth, avatarHeight);
       ctx.restore();
 
-      // Save image
+      // Save final image
       fs.writeFileSync(pathSave, canvas.toBuffer());
 
       // Funny texts
