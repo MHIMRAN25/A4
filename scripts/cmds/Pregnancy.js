@@ -5,7 +5,7 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "5.4",
+    version: "5.5",
     author: "M H IMRAN",
     countDown: 5,
     role: 2,
@@ -46,34 +46,17 @@ module.exports = {
       pathBg = __dirname + `/cache/pregnancy_bg.png`;
       pathSave = __dirname + `/cache/${uid2}_pregnancy_result.png`;
 
-      // Get Avatar
-      async function getUserAvatar(uid) {
-        try {
-          const graphURL = `https://graph.facebook.com/${uid}/picture?width=720&height=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`;
-          const res = await axios.get(graphURL, { responseType: "arraybuffer", timeout: 10000 });
-          if (res.status === 200 && res.data.byteLength > 5000) return Buffer.from(res.data, "binary");
-          throw new Error("Graph failed");
-        } catch (e) {
-          const fallbackURL = await usersData.getAvatarUrl(uid);
-          const fallbackRes = await axios.get(fallbackURL, { responseType: "arraybuffer" });
-          return Buffer.from(fallbackRes.data, "binary");
-        }
-      }
-
-      const avatarBuffer = await getUserAvatar(uid2);
-      fs.writeFileSync(pathAvatar, avatarBuffer);
+      // Get Avatar (simple fetch from Graph API)
+      const avatarRes = await axios.get(
+        `https://graph.facebook.com/${uid2}/picture?width=720&height=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`,
+        { responseType: "arraybuffer" }
+      );
+      fs.writeFileSync(pathAvatar, Buffer.from(avatarRes.data, "binary"));
 
       // Background
       const bgUrl = "https://i.postimg.cc/L8rRR828/pregnancy-template.png";
-      const bgRes = await axios.get(bgUrl, { responseType: "arraybuffer", timeout: 15000 });
+      const bgRes = await axios.get(bgUrl, { responseType: "arraybuffer" });
       fs.writeFileSync(pathBg, Buffer.from(bgRes.data, "binary"));
-
-      // Loading messages
-      const steps = ["🔄 Checking report…", "🧪 Analyzing…", "✅ Result ready!"];
-      for (let i = 0; i < steps.length; i++) {
-        await message.reply(steps[i]);
-        await new Promise(r => setTimeout(r, 1500));
-      }
 
       // Canvas
       const bg = await loadImage(pathBg);
@@ -83,24 +66,21 @@ module.exports = {
 
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // Avatar circular crop
+      // Avatar circular crop (just your snippet)
+      const avatarRadius = 230;
+      const avatarSize = avatarRadius * 2;
       const avatarX = 262;
       const avatarY = 295;
-      const avatarSize = 460;
 
       ctx.save();
       ctx.beginPath();
-      ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
+      ctx.arc(avatarX + avatarRadius, avatarY + avatarRadius, avatarRadius, 0, Math.PI * 2, true);
       ctx.closePath();
       ctx.clip();
-
-      const minSide = Math.min(avatar.width, avatar.height);
-      const sx = (avatar.width - minSide) / 2;
-      const sy = (avatar.height - minSide) / 2;
-      ctx.drawImage(avatar, sx, sy, minSide, minSide, avatarX, avatarY, avatarSize, avatarSize);
+      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
       ctx.restore();
 
-      // Text
+      // Text overlay
       ctx.font = "bold 40px Arial";
       ctx.fillStyle = "#ff0066";
       ctx.textAlign = "center";
