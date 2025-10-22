@@ -57,7 +57,7 @@ module.exports = {
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
 
-      const avatarX = 163;
+      const avatarX = 136;
       const avatarY = 154;
       const avatarWidth = 241;
       const avatarHeight = 242;
