@@ -59,7 +59,7 @@ module.exports = {
 
       const avatarX = 134;
       const avatarY = 154;
-      const avatarWidth = 241;
+      const avatarWidth = 239;
       const avatarHeight = 242;
       const radius = avatarWidth / 2;
 
