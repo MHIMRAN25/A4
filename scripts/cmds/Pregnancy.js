@@ -5,22 +5,19 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "3.1",
-    author: "M H IMRAN", // ❌ কেউ পরিবর্তন করতে পারবে না
+    version: "3.2",
+    author: "M H IMRAN", // ❌ Author cannot be changed
     countDown: 5,
     role: 2,
     shortDescription: "Pregnancy meme generator",
-    longDescription: "Make a pregnancy meme using custom template",
+    longDescription: "Generate a funny pregnancy meme using a custom template",
     category: "fun",
     guide: {
-      en: "{pn} @tag অথবা রিপ্লাই করুন"
+      en: "{pn} @tag or reply to someone"
     }
   },
 
   langs: {
-    bn: {
-      noTag: "⚠️ আপনাকে অবশ্যই কাউকে ট্যাগ করতে হবে অথবা মেসেজে রিপ্লাই দিতে হবে!"
-    },
     en: {
       noTag: "⚠️ You must tag or reply to someone!"
     }
@@ -29,10 +26,12 @@ module.exports = {
   onStart: async function ({ event, message, usersData, getLang, api }) {
     let pathSave;
     try {
+      
       if (module.exports.config.author !== "M H IMRAN") {
-        return message.reply("❌ এই কমান্ডের author পরিবর্তন করা যাবে না!");
+        return message.reply("❌ The author of this command cannot be changed!");
       }
 
+      
       let uid2;
       if (Object.keys(event.mentions).length > 0) {
         uid2 = Object.keys(event.mentions)[0];
@@ -41,24 +40,25 @@ module.exports = {
       }
 
       if (!uid2) return message.reply(getLang("noTag"));
-      await message.reply("🔎 প্রেগন্যান্সি meme তৈরি হচ্ছে...");
+
+      await message.reply("oky...");
 
       const userData = await usersData.get(uid2);
       const userName = userData?.name || "User";
       const avatarURL = await usersData.getAvatarUrl(uid2);
       const avatar = await Canvas.loadImage(avatarURL);
 
-      // 🎨 Template (540x811)
-      const templateURL = "https://i.postimg.cc/L8rRR828/pregnancy-template.png";
+      
+      const templateURL = "https://i.postimg.cc/pTCyMNHq/1000002108-50.jpg";
       const template = await Canvas.loadImage(templateURL);
 
       const canvas = Canvas.createCanvas(template.width, template.height);
       const ctx = canvas.getContext("2d");
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
-      // 🟣 Avatar position (circle)
-      const avatarX = 154;
-      const avatarY = 136;
+
+      const avatarX = 163;
+      const avatarY = 154;
       const avatarWidth = 241;
       const avatarHeight = 242;
       const radius = avatarWidth / 2;
@@ -71,11 +71,11 @@ module.exports = {
       ctx.drawImage(avatar, avatarX, avatarY, avatarWidth, avatarHeight);
       ctx.restore();
 
-      // 💾 Save
+      
       pathSave = `${__dirname}/tmp/${uid2}_pregnancy.png`;
       fs.writeFileSync(pathSave, canvas.toBuffer());
 
-      // 😂 Funny messages
+      
       const funnyTexts = [
         `🤰 অভিনন্দন ${userName}, তোমার রিপোর্ট পজিটিভ এসেছে!`,
         `😂 ওহ না… ${userName} এখন মা/বাবা হতে যাচ্ছে!`,
@@ -89,13 +89,14 @@ module.exports = {
 
       const finalText = funnyTexts[Math.floor(Math.random() * funnyTexts.length)];
 
-      // ✅ Send
+      
       const sent = await message.reply({
         body: finalText,
         attachment: fs.createReadStream(pathSave),
         mentions: [{ tag: userName, id: uid2 }]
       });
 
+    
       if (sent && sent.messageID) {
         api.setMessageReaction("🤰", sent.messageID, () => {}, true);
         api.setMessageReaction("😂", sent.messageID, () => {}, true);
