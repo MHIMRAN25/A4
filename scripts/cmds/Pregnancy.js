@@ -5,12 +5,12 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pregnancy",
-    version: "2.6",
+    version: "2.7",
     author: "M H IMRAN", // ❌ কেউ পরিবর্তন করতে পারবে না
     countDown: 5,
     role: 2,
-    shortDescription: "Pregnancy meme generator",
-    longDescription: "Make a pregnancy meme using online template",
+    shortDescription: "Pregnancy meme generator (anime template)",
+    longDescription: "Anime-style pregnancy meme generator",
     category: "fun",
     guide: {
       en: "{pn} @tag অথবা রিপ্লাই করুন"
@@ -34,7 +34,7 @@ module.exports = {
         return message.reply("❌ এই কমান্ডের author পরিবর্তন করা যাবে না!");
       }
 
-      // 🎯 Target user select (mention or reply)
+      // 🎯 Target user select
       let uid2;
       if (Object.keys(event.mentions).length > 0) {
         uid2 = Object.keys(event.mentions)[0];
@@ -52,7 +52,7 @@ module.exports = {
       if (!avatarURL) return message.reply("⚠️ ইউজারের অ্যাভাটার আনা যাচ্ছে না!");
       const avatar = await Canvas.loadImage(avatarURL);
 
-      // 🌐 Template from online URL
+      // 🌐 Anime Template URL
       const templateURL = "https://i.postimg.cc/L8rRR828/pregnancy-template.png";
       const template = await Canvas.loadImage(templateURL);
 
@@ -61,11 +61,11 @@ module.exports = {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(template, 0, 0, canvas.width, canvas.height);
 
-      // 👶 Avatar circle
-      const avatarRadius = 230;
+      // 🟣 Avatar placement (adjusted for your anime image)
+      const avatarRadius = 120;   // circle radius
       const avatarSize = avatarRadius * 2;
-      const avatarX = 262;
-      const avatarY = 295;
+      const avatarX = 585;        // horizontal position
+      const avatarY = 340;        // vertical position
 
       ctx.save();
       ctx.beginPath();
