@@ -4,50 +4,44 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "love0",
-    version: "1.1",
-    author: "M H IMRAN", // ❌ Cannot be changed
+    name: "pair0",
+    version: "3.5",
+    author: "M H IMRAN", // ❌ Do not change
     countDown: 5,
     role: 2,
     category: "fun",
-    shortDescription: "Funny love attitude meme",
-    longDescription: "Generate a meme with cool anti-love quotes",
-    guide: { en: "{pn} @tag or reply" }
+    shortDescription: "Funny anti-love or roast meme generator",
+    longDescription: "Shows anti-love meme for yourself or funny unromantic roast meme for someone you tag or reply to.",
+    guide: { en: "{pn} or {pn} @mention/reply" }
   },
 
-  langs: { en: { noTag: "⚠️ You must tag or reply to someone!" } },
-
-  onStart: async function ({ event, message, usersData, getLang, api }) {
+  onStart: async function ({ event, message, usersData, api }) {
     let pathSave;
     try {
-      // 🔒 Author protection
-      if (module.exports.config.author !== "M H IMRAN")
-        return message.reply("❌ The author of this command cannot be changed!");
+      const mention =
+        Object.keys(event.mentions || {}).length > 0
+          ? Object.keys(event.mentions)[0]
+          : event.messageReply?.senderID;
 
-      // 👤 Target user
-      const uid = Object.keys(event.mentions || {})[0] || event.messageReply?.senderID;
-      if (!uid) return message.reply(getLang("noTag"));
+      const uid = mention || event.senderID;
 
-      await message.reply("hmm w8");
+      await message.reply("💔 Generating meme...");
 
-      // 🧠 Get user info
-      const name = (await usersData.get(uid))?.name || "User";
+      const userData = await usersData.get(uid);
+      const name = userData?.name || "User";
       const avatarURL = await usersData.getAvatarUrl(uid);
 
-      // 🖼️ Load background & avatar
-      const bgURL = "https://i.postimg.cc/nr5YDDQh/1000002169-with-bgc.png";
+      const bgURL = "https://i.postimg.cc/s2PHSwcm/1761160815292.png";
       const [bg, av] = await Promise.all([
         Canvas.loadImage(bgURL),
         Canvas.loadImage(avatarURL)
       ]);
 
-      // 🎨 Canvas
       const canvas = Canvas.createCanvas(bg.width, bg.height);
       const ctx = canvas.getContext("2d");
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // 👤 Avatar placement
-      const [x, y, w, h] = [444, 24, 392, 391];
+      const [x, y, w, h] = [142, 8, 118, 119];
       const r = w / 2;
       ctx.save();
       ctx.beginPath();
@@ -57,14 +51,13 @@ module.exports = {
       ctx.drawImage(av, x, y, w, h);
       ctx.restore();
 
-      // 💾 Save file
       const tmp = path.join(__dirname, "tmp");
       await fs.ensureDir(tmp);
       pathSave = path.join(tmp, `${uid}_love0.png`);
       fs.writeFileSync(pathSave, canvas.toBuffer());
 
-      // 💬 Funny anti-love texts
-      const texts = [
+      // 💔 Anti-love text (for self)
+      const antiLoveTexts = [
         `💔 Love is overrated.`,
         `😎 Love? Nah, not my thing.`,
         `😂 Too busy for love.`,
@@ -76,17 +69,32 @@ module.exports = {
         `🤢 Allergic to love.`
       ];
 
-      const finalText = texts[Math.floor(Math.random() * texts.length)];
+      // 😂 Roast / Unromantic text (for others)
+      const roastTexts = [
+        `😂 ${name} tried to fall in love but tripped!`,
+        `💔 ${name}, love server crashed again!`,
+        `😅 ${name} applied for love… rejected instantly!`,
+        `🤣 ${name} thought it was love, turns out it was Wi-Fi lag!`,
+        `🤡 ${name}, still buffering in relationship mode!`,
+        `🚫 ${name}, love update failed — please try next century.`,
+        `💀 ${name}, uninstalling love.exe...`,
+        `😏 ${name}, unromantic pro max edition!`,
+        `🍵 ${name}, chill bro, love isn’t your cup of tea!`
+      ];
+
+      const finalText = mention
+        ? roastTexts[Math.floor(Math.random() * roastTexts.length)]
+        : antiLoveTexts[Math.floor(Math.random() * antiLoveTexts.length)];
+
       const sent = await message.reply({
         body: finalText,
         attachment: fs.createReadStream(pathSave),
-        mentions: [{ tag: name, id: uid }]
+        mentions: mention ? [{ tag: name, id: uid }] : []
       });
 
-      // 💬 Auto reactions
       if (sent?.messageID) {
-        api.setMessageReaction("💔", sent.messageID, () => {}, true);
-        api.setMessageReaction("😎", sent.messageID, () => {}, true);
+        const react = mention ? "😂" : "💔";
+        api.setMessageReaction(react, sent.messageID, () => {}, true);
       }
 
     } catch (err) {
