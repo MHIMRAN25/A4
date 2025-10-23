@@ -4,8 +4,8 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "pair0",
-    version: "2.0",
+    name: "love0",
+    version: "2.1",
     author: "M H IMRAN",
     countDown: 5,
     role: 2,
@@ -26,7 +26,7 @@ module.exports = {
       let uid;
       let funnyText;
 
-      // Tag or reply হলে অন্য text
+      // Tag বা reply থাকলে
       if (Object.keys(event.mentions).length > 0) {
         uid = Object.keys(event.mentions)[0];
         const userData = await usersData.get(uid);
@@ -81,10 +81,10 @@ module.exports = {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
       // Avatar position
-      const avatarX = 142;
-      const avatarY = 8;
-      const avatarW = 118;
-      const avatarH = 119;
+      const avatarX = 444;
+      const avatarY = 24;
+      const avatarW = 391;
+      const avatarH = 392;
 
       ctx.save();
       ctx.beginPath();
@@ -101,7 +101,7 @@ module.exports = {
       ctx.drawImage(avatar, avatarX, avatarY, avatarW, avatarH);
       ctx.restore();
 
-      // Text styling (bottom title)
+      // Text styling
       ctx.font = "bold 20px Arial";
       ctx.fillStyle = "#ff4d6d";
       ctx.textAlign = "center";
@@ -119,6 +119,7 @@ module.exports = {
 
       if (sent && sent.messageID) {
         api.setMessageReaction("💔", sent.messageID, () => {}, true);
+        api.setMessageReaction("😞", sent.messageID, () => {}, true);
       }
 
     } catch (err) {
