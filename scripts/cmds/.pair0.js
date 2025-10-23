@@ -5,103 +5,129 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pair0",
-    version: "3.5",
-    author: "M H IMRAN", // ❌ Do not change
+    version: "2.0",
+    author: "M H IMRAN",
     countDown: 5,
     role: 2,
+    shortDescription: "Funny love meme generator",
+    longDescription: "Generate a funny unromantic or pairing meme using user avatars",
     category: "fun",
-    shortDescription: "Funny anti-love or roast meme generator",
-    longDescription: "Shows anti-love meme for yourself or funny unromantic roast meme for someone you tag or reply to.",
-    guide: { en: "{pn} or {pn} @mention/reply" }
+    guide: {
+      en: "{pn} (for yourself) or {pn} @tag / reply (for others)"
+    }
   },
 
   onStart: async function ({ event, message, usersData, api }) {
     let pathSave;
     try {
-      const mention =
-        Object.keys(event.mentions || {}).length > 0
-          ? Object.keys(event.mentions)[0]
-          : event.messageReply?.senderID;
+      const bgURL = "https://i.postimg.cc/nr5YDDQh/1000002169-with-bgc.png";
+      const bg = await Canvas.loadImage(bgURL);
 
-      const uid = mention || event.senderID;
+      let uid;
+      let funnyText;
 
-      await message.reply("💔 Generating meme...");
+      // Tag or reply হলে অন্য text
+      if (Object.keys(event.mentions).length > 0) {
+        uid = Object.keys(event.mentions)[0];
+        const userData = await usersData.get(uid);
+        const name = userData?.name || "User";
 
-      const userData = await usersData.get(uid);
-      const name = userData?.name || "User";
+        const pairTexts = [
+          `😂 Pairing failed! Server responded with 404.\n(${name})`,
+          `💔 ${name} disconnected from the love server.`,
+          `😅 Love request to ${name} denied by system.`,
+          `📴 ${name} is in airplane mode — no signals of love.`,
+          `🤖 ${name}'s heart firewall blocked your request!`
+        ];
+
+        funnyText = pairTexts[Math.floor(Math.random() * pairTexts.length)];
+
+      } else if (event.messageReply) {
+        uid = event.messageReply.senderID;
+        const userData = await usersData.get(uid);
+        const name = userData?.name || "User";
+
+        const replyTexts = [
+          `😂 Pairing failed! Server responded with 404.\n(${name})`,
+          `💔 ${name} refused to connect — try again later.`,
+          `😅 ${name} turned off emotional mode.`,
+          `📴 Love link to ${name} not found.`,
+          `🤖 ${name} installed anti-romance software.`
+        ];
+
+        funnyText = replyTexts[Math.floor(Math.random() * replyTexts.length)];
+
+      } else {
+        // নিজের জন্য
+        uid = event.senderID;
+
+        const selfTexts = [
+          `💔 Love Error 404\nUnromantic mode: ON!`,
+          `😎 Love not found in system settings.`,
+          `🤖 Emotion.exe stopped working.`,
+          `🚫 Love driver missing — reinstall feelings.`,
+          `🥶 Heart status: Frozen.`
+        ];
+
+        funnyText = selfTexts[Math.floor(Math.random() * selfTexts.length)];
+      }
+
+      // Avatar load
       const avatarURL = await usersData.getAvatarUrl(uid);
-
-      const bgURL = "https://i.postimg.cc/s2PHSwcm/1761160815292.png";
-      const [bg, av] = await Promise.all([
-        Canvas.loadImage(bgURL),
-        Canvas.loadImage(avatarURL)
-      ]);
+      const avatar = await Canvas.loadImage(avatarURL);
 
       const canvas = Canvas.createCanvas(bg.width, bg.height);
       const ctx = canvas.getContext("2d");
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      const [x, y, w, h] = [142, 8, 118, 119];
-      const r = w / 2;
+      // Avatar position
+      const avatarX = 142;
+      const avatarY = 8;
+      const avatarW = 118;
+      const avatarH = 119;
+
       ctx.save();
       ctx.beginPath();
-      ctx.arc(x + r, y + r, r, 0, Math.PI * 2);
+      ctx.arc(
+        avatarX + avatarW / 2,
+        avatarY + avatarH / 2,
+        avatarW / 2,
+        0,
+        Math.PI * 2,
+        true
+      );
       ctx.closePath();
       ctx.clip();
-      ctx.drawImage(av, x, y, w, h);
+      ctx.drawImage(avatar, avatarX, avatarY, avatarW, avatarH);
       ctx.restore();
 
-      const tmp = path.join(__dirname, "tmp");
-      await fs.ensureDir(tmp);
-      pathSave = path.join(tmp, `${uid}_love0.png`);
+      // Text styling (bottom title)
+      ctx.font = "bold 20px Arial";
+      ctx.fillStyle = "#ff4d6d";
+      ctx.textAlign = "center";
+      ctx.fillText("Love System", canvas.width / 2, canvas.height - 30);
+
+      // Save file
+      pathSave = `${__dirname}/tmp/${uid}_love0.png`;
       fs.writeFileSync(pathSave, canvas.toBuffer());
 
-      // 💔 Anti-love text (for self)
-      const antiLoveTexts = [
-        `💔 Love is overrated.`,
-        `😎 Love? Nah, not my thing.`,
-        `😂 Too busy for love.`,
-        `🚫 No love, no drama.`,
-        `💤 Emotionless mode: ON.`,
-        `💔 Love? Error 404 — not found.`,
-        `😏 Single and proud.`,
-        `💘 Love? Not today.`,
-        `🤢 Allergic to love.`
-      ];
-
-      // 😂 Roast / Unromantic text (for others)
-      const roastTexts = [
-        `😂 ${name} tried to fall in love but tripped!`,
-        `💔 ${name}, love server crashed again!`,
-        `😅 ${name} applied for love… rejected instantly!`,
-        `🤣 ${name} thought it was love, turns out it was Wi-Fi lag!`,
-        `🤡 ${name}, still buffering in relationship mode!`,
-        `🚫 ${name}, love update failed — please try next century.`,
-        `💀 ${name}, uninstalling love.exe...`,
-        `😏 ${name}, unromantic pro max edition!`,
-        `🍵 ${name}, chill bro, love isn’t your cup of tea!`
-      ];
-
-      const finalText = mention
-        ? roastTexts[Math.floor(Math.random() * roastTexts.length)]
-        : antiLoveTexts[Math.floor(Math.random() * antiLoveTexts.length)];
-
+      // Send message
       const sent = await message.reply({
-        body: finalText,
-        attachment: fs.createReadStream(pathSave),
-        mentions: mention ? [{ tag: name, id: uid }] : []
+        body: funnyText,
+        attachment: fs.createReadStream(pathSave)
       });
 
-      if (sent?.messageID) {
-        const react = mention ? "😂" : "💔";
-        api.setMessageReaction(react, sent.messageID, () => {}, true);
+      if (sent && sent.messageID) {
+        api.setMessageReaction("💔", sent.messageID, () => {}, true);
       }
 
     } catch (err) {
-      console.error("❌ ERROR:", err);
-      message.reply("⚠️ " + err.message);
+      console.error(err);
+      message.reply("⚠️ Error: " + err.message);
     } finally {
-      if (pathSave && await fs.pathExists(pathSave)) await fs.remove(pathSave);
+      if (pathSave && await fs.pathExists(pathSave)) {
+        await fs.remove(pathSave);
+      }
     }
   }
 };
