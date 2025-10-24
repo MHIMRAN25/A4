@@ -4,7 +4,7 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "meter",
-    aliases: ["gay","lesbu","gaymeter","lesbumeter"],
+    aliases: ["lesbu","gaymeter","lesbumeter"],
     version: "2.2",
     author: "Tas33n + GPT",
     shortDescription: "Fun gay/lesbu meter with funny comments",
