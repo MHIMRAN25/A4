@@ -1,110 +1,136 @@
-const Canvas = require("canvas");
 const fs = require("fs-extra");
+const Canvas = require("canvas");
+const { getPrefix } = global.utils;
 
 module.exports = {
   config: {
     name: "meter",
-    aliases: ["gaymeter", "lesbu", "lesbumeter", "lesbian"],
-    version: "2.0",
-    author: "Imran ",
-    countDown: 3,
+    aliases: ["gay", "gaymeter", "lesbu", "lesbumeter", "lesbian"],
+    version: "2.1",
+    author: "MH-TEAM",
     role: 0,
-    shortDescription: "Funny gay/lesbu meter",
-    longDescription: "Shows how gay or lesbu someone is with a funny comment",
+    shortDescription: "Funny gay or lesbian meter",
+    longDescription: "Measures your gay or lesbu level with funny comments & colors",
     category: "fun",
+    guide: "{pn} [gay | lesbu] <tag or reply>",
   },
 
-  onStart: async function ({ event, message, usersData, args }) {
+  onStart: async function ({ message, args, event, usersData }) {
     try {
-      let mention = Object.keys(event.mentions);
-      let uid;
+      // Detect command type
+      let cmd = "";
+      if (args[0]) cmd = args[0].toLowerCase();
+      else if (event.body) cmd = event.body.split(" ")[0].replace(".", "").toLowerCase();
 
-      if (event.type === "message_reply") uid = event.messageReply.senderID;
-      else if (mention[0]) uid = mention[0];
-      else uid = event.senderID;
+      // Type system
+      const type = cmd.includes("lesb") ? "lesbu" : "gay";
 
-      let avatar = await usersData.getAvatarUrl(uid);
-      if (!avatar) return message.reply("❌ Could not fetch avatar!");
+      // Target user
+      let userID;
+      if (event.messageReply) userID = event.messageReply.senderID;
+      else if (args[1]) userID = args[1].replace(/[^0-9]/g, "");
+      else userID = event.senderID;
 
-      // Determine mode (gay or lesbu)
-      const cmd = args[0] ? args[0].toLowerCase() : event.commandName.toLowerCase();
-      const isLesbu = ["lesbu", "lesbumeter", "lesbian"].includes(cmd);
-
-      // Random percent
-      const percent = Math.floor(Math.random() * 101);
-
-      // Funny text system
-      let text = "";
-      if (isLesbu) {
-        if (percent < 30) text = "Straight as a pencil... or so you say 👀";
-        else if (percent < 50) text = "30% lesbu and 70% mysterious 😏";
-        else if (percent < 80) text = "You sparkle with a soft lesbu vibe 💅";
-        else text = "🚺 Full power lesbian mode unlocked 🌈🔥";
-      } else {
-        if (percent < 30) text = "Straight as a ruler... or so you claim 😎";
-        else if (percent < 50) text = "You're like 30% gay and 70% confused 😂";
-        else if (percent < 80) text = "You're not 100% gay but definitely sparkle 💫";
-        else text = "🌈 Oh no bro... you've unlocked the full gay mode! 💖";
+      // Avatar load (no fallback)
+      let avatarURL = null;
+      try {
+        avatarURL = await usersData.getAvatarUrl(userID);
+      } catch (e) {
+        avatarURL = null;
       }
 
-      // Color based on % 
-      let color = "#00FF00"; // green
-      if (percent >= 80) color = "#FF00FF"; // rainbow
-      else if (percent >= 50) color = "#FFA500"; // orange
-      else if (percent >= 30) color = "#FFFF00"; // yellow
+      // Random %
+      const percent = Math.floor(Math.random() * 101);
 
       // Canvas setup
-      const width = 700;
-      const height = 400;
-      const canvas = Canvas.createCanvas(width, height);
+      const canvas = Canvas.createCanvas(500, 250);
       const ctx = canvas.getContext("2d");
 
       // Background
-      ctx.fillStyle = "#1e1e1e";
-      ctx.fillRect(0, 0, width, height);
+      const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bgGradient.addColorStop(0, "#1a1a1a");
+      bgGradient.addColorStop(1, "#000");
+      ctx.fillStyle = bgGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Avatar circle
-      const img = await Canvas.loadImage(avatar);
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(100, 200, 80, 0, Math.PI * 2, true);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(img, 20, 120, 160, 160);
-      ctx.restore();
+      // Bar settings
+      const barWidth = 350, barHeight = 35, barX = 75, barY = 180;
+      ctx.fillStyle = "#222";
+      ctx.fillRect(barX, barY, barWidth, barHeight);
 
-      // Text
-      ctx.font = "bold 40px Arial";
-      ctx.fillStyle = "#fff";
-      ctx.fillText(isLesbu ? "Lesbu Meter" : "Gay Meter", 250, 100);
+      // Color system by %
+      let fillColor;
+      if (percent < 30) fillColor = "#00FF00"; // green
+      else if (percent < 50) fillColor = "#FFA500"; // orange
+      else if (percent < 80) fillColor = "#FFD700"; // yellow
+      else {
+        const rainbow = ctx.createLinearGradient(barX, barY, barX + barWidth, barY);
+        rainbow.addColorStop(0, "#FF0000");
+        rainbow.addColorStop(0.17, "#FF7F00");
+        rainbow.addColorStop(0.34, "#FFFF00");
+        rainbow.addColorStop(0.51, "#00FF00");
+        rainbow.addColorStop(0.68, "#0000FF");
+        rainbow.addColorStop(0.85, "#4B0082");
+        rainbow.addColorStop(1, "#8F00FF");
+        fillColor = rainbow;
+      }
 
-      // Meter Bar
-      ctx.fillStyle = "#333";
-      ctx.fillRect(250, 150, 400, 50);
-      ctx.fillStyle = color;
-      ctx.fillRect(250, 150, (percent / 100) * 400, 50);
+      const filledWidth = (percent / 100) * barWidth;
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(barX, barY, filledWidth, barHeight);
 
-      // Percentage
-      ctx.font = "30px Arial";
-      ctx.fillStyle = "#fff";
-      ctx.fillText(`${percent}%`, 420, 185);
+      // Avatar
+      if (avatarURL) {
+        const avatar = await Canvas.loadImage(avatarURL);
+        const size = 100;
+        const x = 75, y = 50;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(avatar, x, y, size, size);
+        ctx.restore();
+      }
 
-      // Funny Comment
-      ctx.font = "italic 24px Arial";
-      ctx.fillStyle = "#ccc";
-      ctx.fillText(text, 200, 280);
+      // Title text
+      ctx.fillStyle = "#FFF";
+      ctx.font = "26px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`${type === "lesbu" ? "🌸 Lesbu Meter 🌸" : "🌈 Gay Meter 🌈"}`, canvas.width / 2, 40);
 
-      const pathSave = `${__dirname}/tmp/meter_${uid}.png`;
+      // Funny comment system
+      let comment = "";
+      if (type === "gay") {
+        if (percent < 30) comment = "😎 Straight as a ruler—or so you claim!";
+        else if (percent < 50) comment = "🤔 You're like 30% gay and 70% confused!";
+        else if (percent < 80) comment = "✨ Not 100% gay... but definitely sparkle!";
+        else comment = "🌈 Oh no bro, you just unlocked FULL mode! 🏳️‍🌈";
+      } else {
+        if (percent < 30) comment = "💅 Straight vibes detected... or are they?";
+        else if (percent < 50) comment = "💖 A little fruity curiosity there!";
+        else if (percent < 80) comment = "🌸 Soft lesbo energy radiating strong!";
+        else comment = "💘 Girl, you unlocked LESBIAN LEGEND MODE!";
+      }
+
+      ctx.fillStyle = "#FFF";
+      ctx.font = "20px Arial";
+      ctx.fillText(`${percent}%`, canvas.width / 2, 140);
+      ctx.fillText(comment, canvas.width / 2, 170);
+
+      // Confetti
+      for (let i = 0; i < 25; i++) {
+        ctx.fillStyle = `hsl(${Math.random() * 360}, 100%, 60%)`;
+        ctx.beginPath();
+        ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       const buffer = canvas.toBuffer();
-      fs.writeFileSync(pathSave, buffer);
-
       await message.reply({
-        body: isLesbu ? `🌸 Lesbu meter result for ${event.mentions[uid] ? event.mentions[uid] : "you"}:` 
-                      : `🌈 Gay meter result for ${event.mentions[uid] ? event.mentions[uid] : "you"}:`,
-        attachment: fs.createReadStream(pathSave),
+        body: `${type === "lesbu" ? "💋 Lesbu Meter Result!" : "🌈 Gay Meter Result!"}\nAuthor: MH-TEAM`,
+        attachment: buffer,
       });
-
-      fs.unlinkSync(pathSave);
     } catch (e) {
       console.error(e);
       message.reply("❌ Something went wrong while generating the meter!");
