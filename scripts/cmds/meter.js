@@ -4,32 +4,32 @@ const fs = require("fs-extra");
 module.exports = {
   config: {
     name: "meter",
-    aliases: ["lesbu","gaymeter","lesbumeter"],
-    version: "2.2",
+    version: "2.3",
     author: "Tas33n + GPT",
     shortDescription: "Fun gay/lesbu meter with funny comments",
     longDescription: "Generates a colorful meter image with avatar, percentage, and witty comments.",
     category: "fun",
-    guide: "{pn} [gay|lesbu] @mention or reply to a user"
+    guide: "{pn} [gay|lesbu] @mention or reply to a user",
+    aliases: ["gaymeter","lesbumeter"]
   },
 
   onStart: async function({ event, message, usersData, args }) {
     try {
-      // Determine type
+      // 1️⃣ Determine type
       const cmdName = event.commandName.toLowerCase();
       const argType = args[0]?.toLowerCase();
       const type = (argType === "lesbu" || argType === "lesbian" || cmdName.includes("lesbu")) ? "lesbu" : "gay";
 
-      // Determine target user
+      // 2️⃣ Determine target user
       let uid;
       if(event.type === "message_reply") uid = event.messageReply.senderID;
       else if(Object.keys(event.mentions).length > 0) uid = Object.keys(event.mentions)[0];
       else uid = event.senderID;
 
-      // Random percentage
+      // 3️⃣ Random percentage
       const percent = Math.floor(Math.random() * 101);
 
-      // Comments & color
+      // 4️⃣ Determine comment & bar color
       let comment="", barColor="#00FF00";
       if(type==="gay"){
         if(percent<30){ comment="Straight as a ruler... or so you claim!"; barColor="#00FF00"; }
@@ -43,19 +43,26 @@ module.exports = {
         else{ comment="Oh no! You just unlocked full lesbu mode! 🌈 Achievement unlocked!"; barColor="rainbow"; }
       }
 
-      // Load avatar
-      const avatar = await Canvas.loadImage(await usersData.getAvatarUrl(uid));
+      // 5️⃣ Load avatar with fallback
+      let avatar;
+      try {
+        const avatarUrl = await usersData.getAvatarUrl(uid);
+        avatar = await Canvas.loadImage(avatarUrl);
+      } catch (e) {
+        console.log("Avatar fetch failed, using default avatar.");
+        avatar = await Canvas.loadImage("https://i.imgur.com/1Yc7GqP.png"); // default fallback image
+      }
 
-      // Create canvas
+      // 6️⃣ Create canvas
       const canvas = Canvas.createCanvas(500,280);
       const ctx = canvas.getContext("2d");
 
-      // Background gradient
+      // 7️⃣ Background gradient
       const bg = ctx.createLinearGradient(0,0,0,canvas.height);
       bg.addColorStop(0,"#111"); bg.addColorStop(1,"#222");
       ctx.fillStyle = bg; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-      // Draw avatar circle + border
+      // 8️⃣ Draw avatar circle + border
       const aX=50, aY=50, aSize=120;
       ctx.save();
       ctx.beginPath();
@@ -64,7 +71,7 @@ module.exports = {
       ctx.strokeStyle="#FFD700"; ctx.lineWidth=5;
       ctx.beginPath(); ctx.arc(aX+aSize/2,aY+aSize/2,aSize/2+2,0,Math.PI*2); ctx.stroke();
 
-      // Draw meter bar
+      // 9️⃣ Draw meter bar
       const bX=200, bY=180, bW=250, bH=30;
       ctx.fillStyle="#333"; ctx.fillRect(bX,bY,bW,bH);
       const fillW=(percent/100)*bW;
@@ -76,12 +83,12 @@ module.exports = {
       } else ctx.fillStyle=barColor;
       ctx.fillRect(bX,bY,fillW,bH);
 
-      // Percentage & comment
+      // 10️⃣ Percentage & comment
       ctx.font="26px Arial"; ctx.fillStyle="#FFF"; ctx.textAlign="center";
       ctx.fillText(`🌈 ${type.charAt(0).toUpperCase()+type.slice(1)} Meter: ${percent}%`, canvas.width/2, 40);
       ctx.font="20px Arial"; ctx.fillText(comment, canvas.width/2, 120);
 
-      // Confetti
+      // 11️⃣ Confetti
       for(let i=0;i<25;i++){
         const x=Math.random()*canvas.width,y=Math.random()*canvas.height,s=Math.random()*5+2;
         const colors=["#FF0000","#FF7F00","#FFFF00","#00FF00","#0000FF","#8F00FF"];
@@ -89,10 +96,10 @@ module.exports = {
         ctx.beginPath(); ctx.arc(x,y,s,0,Math.PI*2); ctx.fill();
       }
 
-      // Send image
+      // 12️⃣ Send image
       const buffer = canvas.toBuffer("image/png");
       await message.reply({
-        body:`👑 ${type.charAt(0).toUpperCase()+type.slice(1)} Meter Result\nAuthor: MH`,
+        body:`👑 ${type.charAt(0).toUpperCase()+type.slice(1)} Meter Result\nAuthor: Tas33n + GPT`,
         attachment: buffer
       });
 
