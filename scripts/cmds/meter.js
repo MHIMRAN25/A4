@@ -5,8 +5,8 @@ const { getPrefix } = global.utils;
 module.exports = {
   config: {
     name: "meter",
-    aliases: ["gay", "gaymeter", "lesbu", "lesbumeter", "lesbian"],
-    version: "2.1",
+    aliases: [ "gaymeter", "lesbu", "lesbumeter", "lesbian"],
+    version: "2.2",
     author: "MH-TEAM",
     role: 0,
     shortDescription: "Funny gay or lesbian meter",
@@ -17,12 +17,8 @@ module.exports = {
 
   onStart: async function ({ message, args, event, usersData }) {
     try {
-      // Detect command type
-      let cmd = "";
-      if (args[0]) cmd = args[0].toLowerCase();
-      else if (event.body) cmd = event.body.split(" ")[0].replace(".", "").toLowerCase();
-
-      // Type system
+      // Detect command type safely
+      const cmd = (args[0] || (event.body ? event.body.split(" ")[0].replace(".", "") : "gay")).toLowerCase();
       const type = cmd.includes("lesb") ? "lesbu" : "gay";
 
       // Target user
@@ -31,7 +27,7 @@ module.exports = {
       else if (args[1]) userID = args[1].replace(/[^0-9]/g, "");
       else userID = event.senderID;
 
-      // Avatar load (no fallback)
+      // Avatar URL
       let avatarURL = null;
       try {
         avatarURL = await usersData.getAvatarUrl(userID);
@@ -46,19 +42,19 @@ module.exports = {
       const canvas = Canvas.createCanvas(500, 250);
       const ctx = canvas.getContext("2d");
 
-      // Background
+      // Background gradient
       const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
       bgGradient.addColorStop(0, "#1a1a1a");
       bgGradient.addColorStop(1, "#000");
       ctx.fillStyle = bgGradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Bar settings
+      // Bar
       const barWidth = 350, barHeight = 35, barX = 75, barY = 180;
       ctx.fillStyle = "#222";
       ctx.fillRect(barX, barY, barWidth, barHeight);
 
-      // Color system by %
+      // Color by percentage
       let fillColor;
       if (percent < 30) fillColor = "#00FF00"; // green
       else if (percent < 50) fillColor = "#FFA500"; // orange
@@ -79,7 +75,7 @@ module.exports = {
       ctx.fillStyle = fillColor;
       ctx.fillRect(barX, barY, filledWidth, barHeight);
 
-      // Avatar
+      // Draw avatar
       if (avatarURL) {
         const avatar = await Canvas.loadImage(avatarURL);
         const size = 100;
@@ -127,13 +123,18 @@ module.exports = {
       }
 
       const buffer = canvas.toBuffer();
+      const bodyText = type === "lesbu"
+        ? "💋 Lesbu Meter Result! Author: MH-TEAM"
+        : "🌈 Gay Meter Result! Author: MH-TEAM";
+
       await message.reply({
-        body: `${type === "lesbu" ? "💋 Lesbu Meter Result!" : "🌈 Gay Meter Result!"}\nAuthor: MH-TEAM`,
-        attachment: buffer,
+        body: bodyText,
+        attachment: buffer
       });
+
     } catch (e) {
       console.error(e);
-      message.reply("❌ Something went wrong while generating the meter!");
+      await message.reply("❌ Something went wrong while generating the meter!");
     }
   },
 };
