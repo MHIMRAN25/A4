@@ -7,10 +7,10 @@ module.exports = {
   config: {
     name: "meter",
     aliases: ["gay", "gaymeter", "lesbu", "lesbumeter", "lesbian"],
-    version: "3.0",
+    version: "2.2",
     author: "MH-TEAM",
     role: 0,
-    shortDescription: "Funny gay or lesbu meter",
+    shortDescription: "Funny gay or lesbian meter",
     longDescription: "Measures your gay or lesbu level with funny comments & colors",
     category: "fun",
     guide: "{pn} [gay | lesbu] <tag or reply>",
@@ -18,43 +18,36 @@ module.exports = {
 
   onStart: async function ({ message, args, event, usersData }) {
     try {
-      // Detect command type
-      const cmd = (args[0] || (event.body ? event.body.split(" ")[0].replace(".", "") : "gay")).toLowerCase();
+      // --------- Command Detection ----------
+      let cmd = "gay";
+      if (args && args[0]) cmd = args[0].toLowerCase();
+      else if (event.body) cmd = event.body.split(" ")[0].replace(".", "").toLowerCase();
+
       const type = cmd.includes("lesb") ? "lesbu" : "gay";
 
-      // Target user
-      let userID;
+      // --------- Target User ----------
+      let userID = event.senderID;
       if (event.messageReply) userID = event.messageReply.senderID;
-      else if (args[1]) userID = args[1].replace(/[^0-9]/g, "");
-      else userID = event.senderID;
+      else if (args && args[1]) userID = args[1].replace(/[^0-9]/g, "");
 
-      // Avatar URL
+      // --------- Avatar URL ----------
       let avatarURL = null;
-      try { avatarURL = await usersData.getAvatarUrl(userID); } catch (e) { avatarURL = null; }
+      try { avatarURL = await usersData.getAvatarUrl(userID); }
+      catch (e) { avatarURL = null; }
 
-      // Generate DIG image
-      let digBuffer;
-      try {
-        if(type === "gay") digBuffer = await new DIG.Gay().getImage(avatarURL);
-        else digBuffer = await new DIG.Lesbian().getImage(avatarURL);
-      } catch(e) { digBuffer = null; }
-
-      // Random %
+      // --------- Random % ----------
       const percent = Math.floor(Math.random() * 101);
 
-      // Canvas setup
+      // --------- Canvas Setup ----------
       const canvas = Canvas.createCanvas(500, 250);
       const ctx = canvas.getContext("2d");
 
-      // Background
-      ctx.fillStyle = "#1a1a1a";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // DIG image
-      if(digBuffer) {
-        const img = await Canvas.loadImage(digBuffer);
-        ctx.drawImage(img, 0, 0, canvas.width, 150);
-      }
+      // Background gradient
+      const bg = ctx.createLinearGradient(0,0,0,canvas.height);
+      bg.addColorStop(0,"#1a1a1a");
+      bg.addColorStop(1,"#000");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
 
       // Bar
       const barWidth = 350, barHeight = 35, barX = 75, barY = 180;
@@ -63,36 +56,53 @@ module.exports = {
 
       // Bar color by %
       let fillColor;
-      if(percent < 30) fillColor = "#00FF00"; // green
-      else if(percent < 50) fillColor = "#FFA500"; // orange
-      else if(percent < 80) fillColor = "#FFD700"; // yellow
+      if(percent < 30) fillColor = "#00FF00";
+      else if(percent < 50) fillColor = "#FFA500";
+      else if(percent < 80) fillColor = "#FFD700";
       else {
-        const rainbow = ctx.createLinearGradient(barX, barY, barX + barWidth, barY);
-        rainbow.addColorStop(0, "#FF0000");
-        rainbow.addColorStop(0.17, "#FF7F00");
-        rainbow.addColorStop(0.34, "#FFFF00");
-        rainbow.addColorStop(0.51, "#00FF00");
-        rainbow.addColorStop(0.68, "#0000FF");
-        rainbow.addColorStop(0.85, "#4B0082");
-        rainbow.addColorStop(1, "#8F00FF");
+        const rainbow = ctx.createLinearGradient(barX, barY, barX+barWidth, barY);
+        rainbow.addColorStop(0,"#FF0000");
+        rainbow.addColorStop(0.17,"#FF7F00");
+        rainbow.addColorStop(0.34,"#FFFF00");
+        rainbow.addColorStop(0.51,"#00FF00");
+        rainbow.addColorStop(0.68,"#0000FF");
+        rainbow.addColorStop(0.85,"#4B0082");
+        rainbow.addColorStop(1,"#8F00FF");
         fillColor = rainbow;
       }
-      const filledWidth = (percent / 100) * barWidth;
+
+      const filledWidth = (percent/100)*barWidth;
       ctx.fillStyle = fillColor;
       ctx.fillRect(barX, barY, filledWidth, barHeight);
 
-      // Title
+      // --------- Avatar ----------
+      if(avatarURL){
+        try{
+          const avatar = await Canvas.loadImage(avatarURL);
+          const size = 100;
+          const x = 75, y = 50;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(x+size/2, y+size/2, size/2, 0, Math.PI*2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(avatar, x, y, size, size);
+          ctx.restore();
+        } catch(e){ console.log("Avatar load failed"); }
+      }
+
+      // --------- Title ----------
       ctx.fillStyle = "#FFF";
       ctx.font = "26px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(type === "lesbu" ? "🌸 Lesbu Meter 🌸" : "🌈 Gay Meter 🌈", canvas.width/2, 40);
+      ctx.fillText(`${type==="lesbu"?"🌸 Lesbu Meter 🌸":"🌈 Gay Meter 🌈"}`, canvas.width/2, 40);
 
-      // Funny comment
+      // --------- Funny Comments ----------
       let comment = "";
-      if(type === "gay") {
+      if(type==="gay"){
         if(percent < 30) comment = "😎 Straight as a ruler—or so you claim!";
         else if(percent < 50) comment = "🤔 You're like 30% gay and 70% confused!";
-        else if(percent < 80) comment = "✨ Not 100% gay... but definitely sparkle!";
+        else if(percent < 80) comment = "✨ Not fully gay... but sparkle detected!";
         else comment = "🌈 Oh no bro, you just unlocked FULL mode! 🏳️‍🌈";
       } else {
         if(percent < 30) comment = "💅 Straight vibes detected... or are they?";
@@ -106,24 +116,21 @@ module.exports = {
       ctx.fillText(`${percent}%`, canvas.width/2, 140);
       ctx.fillText(comment, canvas.width/2, 170);
 
-      // Confetti
+      // --------- Confetti ----------
       for(let i=0;i<25;i++){
-        ctx.fillStyle = `hsl(${Math.random()*360},100%,60%)`;
+        ctx.fillStyle = `hsl(${Math.random()*360}, 100%, 60%)`;
         ctx.beginPath();
         ctx.arc(Math.random()*canvas.width, Math.random()*canvas.height, Math.random()*6, 0, Math.PI*2);
         ctx.fill();
       }
 
-      // Send
-      const buffer = canvas.toBuffer();
+      // --------- Send Reply ----------
       await message.reply({
-        body: type === "lesbu"
-          ? "💋 Lesbu Meter Result! Author: MH-TEAM"
-          : "🌈 Gay Meter Result! Author: MH-TEAM",
-        attachment: buffer
+        body: `${type==="lesbu"?"💋 Lesbu Meter Result!":"🌈 Gay Meter Result!"}\nAuthor: MH-TEAM`,
+        attachment: canvas.toBuffer()
       });
 
-    } catch(e) {
+    } catch(e){
       console.error(e);
       await message.reply("❌ Something went wrong while generating the meter!");
     }
