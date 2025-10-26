@@ -1,127 +1,142 @@
+const DIG = require("discord-image-generation");
 const fs = require("fs-extra");
-const Canvas = require("canvas");
 
 module.exports = {
   config: {
     name: "meter",
-    aliases: ["gay", "gaymeter", "lesbu", "lesbumeter", "lesbian"],
-    version: "2.4",
-    author: "MH-TEAM",
+    aliases: ["gaymeter", "lesbu", "lesbumeter", "lesbian"],
+    version: "4.0", 
+    author: "IMRAN",
     role: 0,
     shortDescription: "Funny gay or lesbu meter",
-    longDescription: "Measures your gay or lesbu level with rainbow bar & funny comments",
+    longDescription: "Measures your gay or lesbu level using DIG overlay & funny comments. Image changes based on score.",
     category: "fun",
-    guide: "{pn} [gay | lesbu] <tag or reply>",
+    guide: "{pn} <tag or reply>",
   },
 
   onStart: async function ({ message, args, event, usersData }) {
     try {
-      // Detect command type
-      let cmd = "gay";
-      if (args && args[0]) cmd = args[0].toLowerCase();
-      else if (event.body) cmd = event.body.split(" ")[0].replace(".", "").toLowerCase();
-
+      
+      const cmd = (args && args[0] || event.commandName || "gay").toLowerCase();
       const type = cmd.includes("lesb") ? "lesbu" : "gay";
 
-      // Target user (reply > mention > sender)
+      
       let userID = event.senderID;
-      if (event.messageReply) userID = event.messageReply.senderID;
-      else if (args && args[1]) userID = args[1].replace(/[^0-9]/g, "");
+      const mentionKeys = Object.keys(event.mentions);
+      
+      if (event.messageReply) {
+          userID = event.messageReply.senderID;
+      } else if (mentionKeys.length > 0) {
+          userID = mentionKeys[0];
+      }
+      
 
-      // Avatar URL
       let avatarURL = null;
-      try { avatarURL = await usersData.getAvatarUrl(userID); } 
-      catch (e) { avatarURL = null; }
+      try { 
+          avatarURL = await usersData.getAvatarUrl(userID); 
+      } catch (e) { 
+          console.error("Avatar URL fetch failed:", e.message);
+          return message.reply("❌ দুঃখিত! অ্যাভাটার ইউআরএল আনতে সমস্যা হচ্ছে।"); 
+      }
 
-      // Random percentage
+      
       const percent = Math.floor(Math.random() * 101);
 
-      // Canvas setup
-      const canvas = Canvas.createCanvas(500, 250);
-      const ctx = canvas.getContext("2d");
-
-      // Background
-      const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      bg.addColorStop(0, "#1a1a1a");
-      bg.addColorStop(1, "#000");
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Rainbow Bar
-      const barWidth = 350, barHeight = 35, barX = 75, barY = 180;
-      ctx.fillStyle = "#222";
-      ctx.fillRect(barX, barY, barWidth, barHeight);
-
-      const rainbow = ctx.createLinearGradient(barX, barY, barX + barWidth, barY);
-      rainbow.addColorStop(0, "#FF0000");
-      rainbow.addColorStop(0.17, "#FF7F00");
-      rainbow.addColorStop(0.34, "#FFFF00");
-      rainbow.addColorStop(0.51, "#00FF00");
-      rainbow.addColorStop(0.68, "#0000FF");
-      rainbow.addColorStop(0.85, "#4B0082");
-      rainbow.addColorStop(1, "#8F00FF");
-
-      const filledWidth = (percent / 100) * barWidth;
-      ctx.fillStyle = rainbow;
-      ctx.fillRect(barX, barY, filledWidth, barHeight);
-
-      // Avatar (optional)
-      if (avatarURL) {
-        try {
-          const avatar = await Canvas.loadImage(avatarURL);
-          const size = 100, x = 75, y = 50;
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(avatar, x, y, size, size);
-          ctx.restore();
-        } catch (e) { console.log("Avatar load failed"); }
-      }
-
-      // Title
-      ctx.fillStyle = "#FFF";
-      ctx.font = "26px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(`${type === "lesbu" ? "🌸 Lesbu Meter 🌸" : "🌈 Gay Meter 🌈"}`, canvas.width / 2, 40);
-
-      // Funny comments
-      let comment = "";
+      let comments = [];
       if (type === "gay") {
-        if (percent < 30) comment = "😎 Straight as a ruler—or so you claim!";
-        else if (percent < 50) comment = "🤔 You're like 30% gay and 70% confused!";
-        else if (percent < 80) comment = "✨ Not fully gay... but sparkle detected!";
-        else comment = "🌈 Oh no bro, you just unlocked FULL mode! 🏳️‍🌈";
+        if (percent < 30) {
+          comments = [
+            "😎 Straight as a ruler—or so you claim!", 
+            "🧱 কংক্রিটের মতো স্ট্রেইট। একটুও নড়বে না!", 
+            "🤫 ইউজার প্রোফাইল বলছে স্ট্রেইট, কিন্তু ভেতরের খবর?", 
+            "🥇 ১০০% স্ট্রেইট, এই রেঞ্জে আপনি চ্যাম্পিয়ন।"
+          ];
+        } else if (percent < 50) {
+          comments = [
+            "🌈 আপনি হয়তো ইদ্রিসের সাথে আইসক্রিম খেতে চান, ব্যস!", 
+            "🤔 You're like 30% gay and 70% confused!", 
+            "🚦 লাল আর হলুদ আলোর মাঝে দাঁড়িয়ে আছেন।", 
+            "🤏 সামান্য বাঁক আছে, কিন্তু সাইকেল চালানো যায়।"
+          ];
+        } else if (percent < 80) {
+          comments = [
+            "✨ Not fully gay... but sparkle detected!", 
+            "💖 আপনার পার্সে গ্লিটার পাওয়া গেছে, ব্যাখ্যা দিন।", 
+            "🕺 প্রায় অর্ধেক পথ পেরিয়ে এসেছেন!", 
+            "😇 আপনি গে নন, কিন্তু গে-দের 'বেস্ট ফ্রেন্ড'।"
+          ];
+        } else {
+          comments = [
+            "🌈 Oh no bro, you just unlocked FULL mode! 🏳️‍🌈", 
+            "কি একটা অবস্থা গ্রুপে এরকম গে এড করে কে?😤", 
+            "🚨 রেড অ্যালার্ট! পুরো টিম চলে এসেছে।", 
+            "🏳️‍🌈 গে লেজেন্ড, আপনার হাতেই রেইনবোর চাবি।"
+          ];
+        }
+      } else { // type === "lesbu"
+        if (percent < 30) {
+          comments = [                   
+            "💅 Still in the friend zone, nothing to see here!", 
+            "Just two girls being roommates. Totally platonic.", 
+            "My meter is broken, or are you just straight?", 
+            "😅 আপু, আপনি তো এখনো সেই 'আমরা শুধু বন্ধু' স্টেজে আছেন!"
+          ];
+        } else if (percent < 50) {
+          comments = [
+            "💖 A little fruity curiosity there!", 
+            "😉 ওই, পাশের মেয়েটির দিকে আড়চোখে তাকানো চলছে!",
+            "You accidentally made eye contact with a girl. That counts!", 
+            "The rainbow is faint, but the vibe is there."
+          ];
+        } else if (percent < 80) {
+          comments = [
+            "🌸 Soft lesbo energy radiating strong!", 
+            "Confirmed: You're halfway through the 'Girlfriend Application'.", 
+            "🤫 কানাকানি শুনেছি, আপনারা কফি শপে ডেট করছেন!", 
+            "Getting cozy under the Sapphic umbrella!"
+          ];
+        } else {
+          comments = [
+            "💘 Girl, you unlocked LESBIAN LEGEND MODE!", 
+            "Welcome to the coven! You're 100% committed.", 
+            "👑 আর লুকোচুরি নয়, এবার পুরো শহর আপনাদের ভালোবাসার রং দেখুক!", 
+            "Warning: May spontaneously start building furniture with a partner."                      
+          ];
+        }
+      }
+
+      // কমেন্ট লিস্ট থেকে একটি র্যান্ডম কমেন্ট নির্বাচন
+      const comment = comments[Math.floor(Math.random() * comments.length)];
+
+      
+      let finalImageBuffer;
+      
+      if (percent < 50) {
+          
+          finalImageBuffer = await new DIG.Grayscale().getImage(avatarURL);
       } else {
-        if (percent < 30) comment = "💅 Straight vibes detected... or are they?";
-        else if (percent < 50) comment = "💖 A little fruity curiosity there!";
-        else if (percent < 80) comment = "🌸 Soft lesbo energy radiating strong!";
-        else comment = "💘 Girl, you unlocked LESBIAN LEGEND MODE!";
+          
+          finalImageBuffer = await new DIG.Gay().getImage(avatarURL); 
       }
+      
+      
+      const pathSave = `${__dirname}/tmp/meter_result.png`;
 
-      ctx.fillStyle = "#FFF";
-      ctx.font = "20px Arial";
-      ctx.fillText(`${percent}%`, canvas.width / 2, 140);
-      ctx.fillText(comment, canvas.width / 2, 170);
+      
+      await fs.ensureDir(`${__dirname}/tmp`); 
+      fs.writeFileSync(pathSave, Buffer.from(finalImageBuffer)); 
 
-      // Confetti
-      for (let i = 0; i < 25; i++) {
-        ctx.fillStyle = `hsl(${Math.random() * 360}, 100%, 60%)`;
-        ctx.beginPath();
-        ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      
+      const resultBody = `${type === "lesbu" ? "💋 Lesbu Meter Result!" : "🌈 Gay Meter Result!"}\n\n**Meter Score: ${percent}%**\nComment: ${comment}`;
 
-      // Send reply
+      
       await message.reply({
-        body: `${type === "lesbu" ? "💋 Lesbu Meter Result!" : "🌈 Gay Meter Result!"}\nAuthor: MH-TEAM`,
-        attachment: canvas.toBuffer()
-      });
-
+        body: resultBody,
+        attachment: fs.createReadStream(pathSave)
+      }, () => fs.unlinkSync(pathSave)); 
     } catch (e) {
-      console.error(e);
-      await message.reply("❌ Something went wrong while generating the meter!");
+      console.error("METER COMMAND ERROR:", e);
+      await message.reply("❌ Something went wrong while processing the meter! Check console for details.");
     }
   }
 };
